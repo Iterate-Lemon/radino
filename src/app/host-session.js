@@ -5,7 +5,7 @@
 
 import { peerOptions } from '../net/peer-options.js';
 import { Emitter, randomCode, local } from '../lib/util.js';
-import { createGame, reduce, publicView, playerById, LIMITS } from '../core/game.js';
+import { createGame, reduce, publicView, playerById, upgradeGame, LIMITS } from '../core/game.js';
 import { PeerHost } from '../net/peer-host.js';
 import { safeEqual, makeInviteHash, PROTOCOL_VERSION } from '../net/protocol.js';
 import { AudioClient, AudioDirector } from './audio-sync.js';
@@ -47,7 +47,7 @@ export class HostSession extends Emitter {
       this.joinKey = saved.joinKey;
       this.me = saved.hostPid;
       this.tokens = saved.tokens || {};
-      this.game = saved.game;
+      this.game = upgradeGame(saved.game); // ältere Spielstände ergänzen
       for (const p of this.game.players) if (!p.host) p.connected = false;
     } else {
       this.roomId = randomCode(26);
@@ -86,6 +86,7 @@ export class HostSession extends Emitter {
     });
 
     this.#applyMode();
+    this.#armChallenge(); // gespeichertes Spiel mitten in der Anzweifel-Phase
   }
 
   start() {
@@ -225,6 +226,8 @@ export class HostSession extends Emitter {
 
   #dispatch(action, { quiet = false } = {}) {
     const prevMode = this.game.settings.mode;
+    // Das Zeitlimit der Anzweifel-Phase läuft nach der Uhr des Hosts.
+    if (action.type === 'lock') action = { ...action, now: Date.now() };
     const r = reduce(this.game, action, this.ctx);
     if (r.error) {
       if (!quiet && action.by === this.me) console.info('Aktion abgelehnt:', action.type, r.error);
@@ -232,10 +235,27 @@ export class HostSession extends Emitter {
     }
     this.game = r.state;
     if (this.game.settings.mode !== prevMode && this.local) this.#applyMode();
+    this.#armChallenge();
     this.#save();
     this.#changed();
     this.#runEffects(r.effects);
     return null;
+  }
+
+  /** Stellt den Timer, der die Anzweifel-Phase nach Ablauf des Zeitlimits beendet. */
+  #armChallenge() {
+    const card = this.game.card;
+    const until = this.game.phase === 'challenge' ? card?.challenge?.until ?? null : null;
+    const key = until === null ? null : `${card.round}:${until}`;
+    if (key === this.challengeKey) return;
+    this.challengeKey = key;
+    clearTimeout(this.challengeTimer);
+    if (key === null) return;
+    const round = card.round;
+    this.challengeTimer = setTimeout(() => {
+      this.challengeKey = null;
+      this.#dispatch({ type: 'endChallenge', by: 'system', round }, { quiet: true });
+    }, Math.max(0, until - Date.now()));
   }
 
   #save() {
@@ -326,7 +346,7 @@ export class HostSession extends Emitter {
   #replay() {
     const card = this.game.card;
     let fallback = null;
-    if (card && (this.game.phase === 'turn' || this.game.phase === 'reveal')) {
+    if (card && (this.game.phase === 'turn' || this.game.phase === 'challenge' || this.game.phase === 'reveal')) {
       const trackId = trackFor(this.db, card.s, this.game.settings.mode);
       if (trackId) fallback = { trackId, pos: this.game.settings.startAt * 1000, round: card.round };
     }
@@ -344,6 +364,7 @@ export class HostSession extends Emitter {
     this.transport.stop();
     this.musicOff?.();
     clearTimeout(this.saveTimer);
+    clearTimeout(this.challengeTimer);
     if (forget) discardSavedHost();
   }
 }
