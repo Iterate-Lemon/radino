@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; connect-src 'self' https://accounts.spotify.com https://api.spotify.com; img-src 'self' data: https://i.scdn.co; style-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'"
+    />
+    <meta name="referrer" content="no-referrer" />
+    <title>RaDino – Spotify-Abgleich</title>
+    <link rel="stylesheet" href="../src/ui/ui.css" />
+    <link rel="stylesheet" href="abgleich.css" />
+    <script type="module" src="abgleich.js"></script>
+  </head>
+  <body>
+    <main class="page wide">
+      <h1>Spotify-Abgleich</h1>
+      <p class="sub">
+        Einmalige Einrichtung: Sucht zu jedem Song die passende Spotify-Track-ID (zuerst über die ISRC, sonst über
+        Titel und Interpret). Das Erscheinungsjahr kommt immer von der Karte, nie von Spotify.
+      </p>
+      <section class="box" id="login"></section>
+      <section class="box" id="run"></section>
+      <section class="box" id="review"></section>
+      <section class="box" id="export"></section>
+    </main>
+  </body>
+</html>

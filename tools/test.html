@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self' https://sdk.scdn.co; frame-src https://sdk.scdn.co; connect-src 'self' https://accounts.spotify.com https://api.spotify.com https://0.peerjs.com wss://0.peerjs.com; img-src 'self' data:; style-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'"
+    />
+    <meta name="referrer" content="no-referrer" />
+    <title>RaDino – Funktionstest</title>
+    <link rel="stylesheet" href="../src/ui/ui.css" />
+    <script src="../vendor/peerjs-1.5.5.min.js" integrity="sha384-buOtRa++PJhMHN33SmVMNp+omDHiEghXCU68Mf0w/SteKD/vr0iTmENyFYQvJCKs"></script>
+    <script type="module" src="test.js"></script>
+  </head>
+  <body>
+    <main class="page">
+      <h1>Funktionstest</h1>
+      <p class="sub">Prüft Spotify-Login, verdecktes Abspielen und die Verbindungstechnik – ohne ein Spiel zu starten.</p>
+      <section class="box" id="spotify"></section>
+      <section class="box" id="play"></section>
+      <section class="box" id="net"></section>
+    </main>
+  </body>
+</html>
