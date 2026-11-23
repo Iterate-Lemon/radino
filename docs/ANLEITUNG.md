@@ -104,7 +104,7 @@ Die Songliste enthält 2.753 Songs mit dem Erscheinungsjahr von den Originalkart
 
 **Der Host** (wer das Spiel eröffnet):
 
-1. Öffnet `https://DEINNAME.github.io/radino/`, gibt einen Namen ein und klickt auf **„Spiel erstellen“**.
+1. Öffnet `https://DEINNAME.github.io/radino/` und klickt auf **„Spiel erstellen“**. Im Namensfeld steht schon ein lustiger Vorschlag. Der Würfel daneben schlägt einen neuen vor, oder man tippt einfach einen eigenen Namen ein.
 2. Meldet sich bei Spotify an. Das ist nur beim ersten Mal nötig, danach merkt sich der Browser die Anmeldung.
 3. Wählt den Modus und die Editionen aus. Dann klickt er auf **„Kopieren“** und schickt den **Einladungslink** an die Freunde, z. B. per Discord.
 4. Sobald alle in der Liste stehen, klickt er auf **„Spiel starten“**.
@@ -113,7 +113,7 @@ Die Songliste enthält 2.753 Songs mit dem Erscheinungsjahr von den Originalkart
 
 **Die Mitspieler:**
 
-1. Öffnen den Einladungslink, geben einen Namen ein und klicken auf **„Beitreten“**.
+1. Öffnen den Einladungslink, nehmen den vorgeschlagenen Namen (oder würfeln bzw. tippen einen anderen) und klicken auf **„Beitreten“**.
 2. Nur im Modus **„Jeder hört selbst“**: einmal auf **„Bei Spotify anmelden“** klicken.
 
 **So geht das Spiel:**

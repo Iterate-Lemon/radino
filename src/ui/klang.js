@@ -45,6 +45,11 @@ export const KLAENGE = {
   ],
   // Klänge eingeschaltet
   an: [{ f: 440, d: 0.06, v: 0.45 }, { t: 0.06, f: 587, d: 0.1, v: 0.45 }],
+  // Ein neuer Name wird gewürfelt: der Würfel klackert kurz und bleibt liegen
+  wuerfel: [
+    { f: 587, d: 0.03, v: 0.28, w: 'square' }, { t: 0.07, f: 494, d: 0.03, v: 0.26, w: 'square' },
+    { t: 0.15, f: 659, d: 0.03, v: 0.24, w: 'square' }, { t: 0.25, f: 392, d: 0.07, v: 0.4 },
+  ],
 };
 
 // ── Erzeugung ────────────────────────────────────────────────────────────────

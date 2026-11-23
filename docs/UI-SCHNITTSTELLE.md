@@ -11,6 +11,7 @@ Der Ordner besteht derzeit aus:
 | `skala.js` | die Zeitleiste als Senderskala mit Songkarten, Auswahl und Aufdeck-Animation |
 | `pixel.js` | eigene Pixelschrift, Dino-Maskottchen, Symbole (alles als SVG gezeichnet) |
 | `klang.js` | leise Klänge zu Knöpfen und Animationen, im Browser erzeugt (siehe „Klänge“) |
+| `namen.js` | Namensvorschläge für die Startseite (siehe „Namensvorschlag“) |
 | `dom.js` | kleine DOM-Helfer |
 | `ui.css` | sämtliche Gestaltung |
 
@@ -41,7 +42,7 @@ Ob eine Schaltfläche aktiv sein soll, steht in `state.room.can.*`. Die Oberflä
 {
   screen: 'home' | 'room',
   testMode: boolean,               // Testmodus (ohne Musik) wählbar (?test)
-  name: string,                    // eigener Name (gespeichert)
+  name: string,                    // eigener Name (gespeichert), '' wenn noch keiner gespeichert ist
   invite: { roomId } | null,       // Seite wurde über einen Einladungslink geöffnet
   savedRoom: { savedAt, players, phase } | null, // Host kann ein gespeichertes Spiel fortsetzen
   error: string | null,            // Fehlermeldung (mit actions.dismissError() schließen)
@@ -98,8 +99,9 @@ Ob eine Schaltfläche aktiv sein soll, steht in `state.room.can.*`. Die Oberflä
     correctSlots?: [number],       // wo die Karte richtig gewesen wäre
     // nur mit settings.tokens:
     fixed?: boolean,               // Lücke festgelegt (slot ändert sich nicht mehr), aber noch verdeckt
-    challenge?: null | { until, picks: [{ p: playerId, slot }], passed: [playerId], pending: [playerId], freeSlots: [number] },
-    wonBy?: playerId | null,       // Anzweifler, der die Karte bekommen hat (nach dem Aufdecken)
+    challenge?: null | { until, picks: [{ p: playerId, slot? }], passed: [playerId], pending: [playerId], freeSlots: [number] },
+                                   // picks[].slot erst nach dem Aufdecken (locked), vorher nur, wer getippt hat
+    wonBy?: [playerId],            // Anzweifler, die die Karte bekommen haben (nach dem Aufdecken, sonst leer)
     grant?: { by: playerId } | null, // in diesem Zug vergebene Marke und wer sie gegeben hat
   },
   deckLeft: number,
@@ -127,7 +129,7 @@ Wer anfängt, wäre sonst im Vorteil. Deshalb endet das Spiel nicht in dem Momen
 2. Am Rundenende gewinnt, wer allein die meisten Karten hat (`phase: 'ended'`, `endReason: 'target'`). Hat der Letzte der Runde das Ziel als Einziger erreicht, endet das Spiel wie bisher direkt beim Aufdecken.
 3. Bei Gleichstand kommen alle anderen in `game.out`: Sie kommen nicht mehr dran und dürfen nicht mehr anzweifeln. Die Führenden spielen weitere Runden, bis nach einer Runde einer allein vorn liegt.
 
-Getrennte Spieler werden wie immer übersprungen und halten das Rundenende nicht auf. Auch geklaute Karten (Regel „Marken“) zählen erst am Rundenende. Bei leerem Stapel oder „Spiel beenden“ gewinnt wie bisher, wer von den verbliebenen Spielern die meisten Karten hat.
+Getrennte Spieler werden wie immer übersprungen und halten das Rundenende nicht auf. Auch geklaute Karten (Regel „Marken“) zählen erst am Rundenende. Bekommen mehrere Anzweifler dieselbe Karte, kann das einen Gleichstand ergeben. Bei leerem Stapel oder „Spiel beenden“ gewinnt wie bisher, wer von den verbliebenen Spielern die meisten Karten hat.
 
 In `src/ui/` steht der Stand in der Kopfzeile („Letzte Runde: …“ bzw. „Gleichstand bei … Karten: …“, in Orange) und nach dem Aufdecken im Satz unter der Überschrift. Ausgeschiedene sind unter „Zeitleisten“ grau und tragen „raus“.
 
@@ -152,8 +154,8 @@ Feste Werte (`TOKENS` in `src/core/game.js`): 2 Marken zum Start, höchstens 5 p
 **Ablauf eines Zugs mit Marken**
 
 1. `turn`: wie bisher. Mit `lockIn()` wird die Lücke festgelegt, aber **nicht aufgedeckt**: `card.fixed` ist `true`, `card.locked` bleibt `false`, `card.song` fehlt weiter.
-2. `challenge`: Jeder andere verbundene Spieler mit mindestens einer Marke darf einmal anzweifeln (`challenge(slot)`, kostet eine Marke, nicht widerrufbar) oder passen (`passChallenge()`). Die Lücke des aktiven Spielers und schon gewählte Lücken sind gesperrt. Die Phase endet, sobald niemand mehr aussteht, das Zeitlimit abläuft oder der Host `endChallenge()` auslöst. Gibt es gar keinen Berechtigten, wird sie übersprungen. Wer die Verbindung verliert, gilt als gepasst.
-3. `reveal`: `card.locked` wird `true`, `card.song` und `card.correct` kommen an. `card.correct` bezieht sich immer auf den aktiven Spieler. Lag er falsch und ein Anzweifler richtig, steht dessen ID in `card.wonBy` und die Karte liegt in dessen Zeitleiste (bei mehreren Richtigen gewinnt der erste in `card.challenge.picks`). `card.challenge` bleibt zum Anzeigen der Tipps erhalten. Erreicht der Anzweifler damit das Kartenziel, ist die Phase direkt `ended`.
+2. `challenge`: Jeder andere verbundene Spieler mit mindestens einer Marke darf einmal anzweifeln (`challenge(slot)`, kostet eine Marke, nicht widerrufbar) oder passen (`passChallenge()`). Gesperrt ist nur die Lücke des aktiven Spielers: Mehrere Anzweifler dürfen dieselbe Lücke wählen. **Die Tipps sind verdeckt:** Bis zum Aufdecken enthält `card.challenge.picks` nur, wer getippt hat (`{ p }`), nicht wo. Das gilt für alle, auch für den Host und den Anzweifler selbst; die eigene Lücke merkt sich `app.js` (siehe `room.challenge.mine`). Die Phase endet, sobald niemand mehr aussteht, das Zeitlimit abläuft oder der Host `endChallenge()` auslöst. Gibt es gar keinen Berechtigten, wird sie übersprungen. Wer die Verbindung verliert, gilt als gepasst.
+3. `reveal`: `card.locked` wird `true`, `card.song` und `card.correct` kommen an, und `card.challenge.picks` hat jetzt zu jedem Tipp die Lücke (`{ p, slot }`). `card.correct` bezieht sich immer auf den aktiven Spieler. Lag er falsch, bekommt **jeder** Anzweifler mit richtigem Tipp die Karte: Ihre IDs stehen in `card.wonBy` (in der Reihenfolge des Anzweifelns), und die Karte liegt danach in jeder ihrer Zeitleisten. Dieselbe Karte kann also in mehreren Zeitleisten liegen. `card.challenge` bleibt zum Anzeigen der Tipps erhalten. Ob jemand damit gewonnen hat, entscheidet sich wie immer am Rundenende (siehe „Spielende“).
 4. Solange die Phase `reveal` ist, kann jeder andere Spieler dem aktiven Spieler eine Marke geben (`giveToken()`), höchstens eine pro Zug (`card.grant`). Der Host kann sie zurücknehmen (`revokeToken()`); danach kann wieder eine vergeben werden. Mit `nextTurn()` ist die Gelegenheit vorbei.
 
 **`room.challenge`** (nur in der Phase `challenge`, sonst `null`):
@@ -162,15 +164,17 @@ Feste Werte (`TOKENS` in `src/core/game.js`): 2 Marken zum Start, höchstens 5 p
 Challenge = {
   endsAt: number | null,           // Endzeitpunkt in der eigenen Uhr (vergleichbar mit Date.now())
   lockedSlot: number,              // Lücke des aktiven Spielers (gesperrt)
-  picks: [{ p: playerId, slot }],  // wer welche Lücke angezweifelt hat, in dieser Reihenfolge
+  picks: [{ p: playerId }],        // wer schon angezweifelt hat, in dieser Reihenfolge (ohne Lücke: die ist verdeckt)
   passed: [playerId],              // wer gepasst hat (auch: Verbindung verloren)
   pending: [playerId],             // wer noch anzweifeln oder passen kann
-  freeSlots: [number],             // Lücken, die noch gewählt werden können
-  mine: number | null,             // die selbst angezweifelte Lücke
+  freeSlots: [number],             // Lücken, die gewählt werden können (alle außer lockedSlot)
+  mine: number | null,             // die selbst angezweifelte Lücke (null: nicht angezweifelt oder in einem anderen Tab)
 }
 ```
 
 `card.challenge.until` ist derselbe Endzeitpunkt in der Uhr des Hosts. Für einen Countdown `room.challenge.endsAt` verwenden. Alle Lücken beziehen sich auf die Zeitleiste des aktiven Spielers.
+
+Woher `mine` kommt: Der Spielstand verrät niemandem die Lücken, auch nicht die eigene. `actions.challenge(slot)` legt die gewählte Lücke deshalb mit Raum und Kartennummer im `sessionStorage` des Tabs ab (`radino.tipp`), damit sie ein Neuladen übersteht.
 
 **`room.can`**
 
@@ -196,15 +200,15 @@ TokenEntry = {
 
 Das Protokoll gilt für das ganze Spiel und wird bei „Neues Spiel“ geleert. `won` steht schon im Stand, während die Oberfläche das Aufdecken noch animiert: bis dahin nicht anzeigen.
 
-**Verlauf `game.log`**: `{ k: 'stolen', p, from, song }` (p hat die Karte von from geklaut; steht direkt hinter dem zugehörigen `placed`-Eintrag), `{ k: 'token', p, by }` (p bekommt eine Marke von by), `{ k: 'tokenRevoked', p, by }`.
+**Verlauf `game.log`**: `{ k: 'stolen', p, from, song }` (p hat die Karte von from geklaut; ein Eintrag je Anzweifler, der sie bekommt, direkt hinter dem zugehörigen `placed`-Eintrag), `{ k: 'token', p, by }` (p bekommt eine Marke von by), `{ k: 'tokenRevoked', p, by }`.
 
 **Bedienung in `src/ui/`**
 
 - Lobby: Schiebeschalter „Marken“ (`.schalter`) mit einem Satz Erklärung.
 - Markenstand: in jeder Zeile unter „Zeitleisten“ fünf Plätze links neben dem Kartenstand (`.markenstand`, belegte gefüllt). Die Marke gibt es klein und einfarbig (`symbol('marke')`) und groß als Münze mit orangem Rand (`marke()` in `pixel.js`).
 - Festlegen: Die verdeckte Karte rastet ein, bekommt einen hellen Rahmen und ein Schloss (`.zeiger.fest`).
-- Anzweifeln: Die Lücke wird auf der Skala gewählt. In jeder freien Lücke steht ein vorgezeichneter Marken-Platz. Ein Klick (oder ← →) steckt die eigene Marke probehalber dorthin, der Hauptknopf „Anzweifeln“ (oder Enter) löst `challenge(slot)` aus. Die Tipps der Anzweifler stecken mit Namen als Marken in der Skala (`.tipp`). Gesperrt ist, wo schon die Karte oder eine Marke hängt. Die Frist läuft in der Aktionszeile als Skalenstriche ab (`.frist`), daneben „Passen“ und für den Host „Jetzt aufdecken“.
-- Aufdecken: Jede gesteckte Marke bekommt ihr Urteil (grün mit Haken, rot mit Kreuz). Bekommt ein Anzweifler die Karte, zeigt sie kurz sein Namensschild und fliegt in seine Zeile unter „Zeitleisten“ (`Skala.klau()`). So lange bleiben die Karte dort und der Verlaufseintrag `stolen` verborgen.
+- Anzweifeln: Die Lücke wird auf der Skala gewählt. In jeder freien Lücke steht ein vorgezeichneter Marken-Platz. Ein Klick (oder ← →) steckt die eigene Marke probehalber dorthin, der Hauptknopf „Anzweifeln“ (oder Enter) löst `challenge(slot)` aus. Danach steckt die eigene Marke mit Namen in der Skala (`.tipp`); die Marken der anderen bleiben bis zum Aufdecken unsichtbar. Gesperrt ist nur die Lücke der Karte. Wer schon getippt oder gepasst hat und wer noch überlegt, steht rechts in der Aktionszeile (`.zweifel-stand`, „Getippt: … · Gepasst: … · Offen: …“). Die Frist läuft dort als Skalenstriche ab (`.frist`), daneben „Passen“ und für den Host „Jetzt aufdecken“.
+- Aufdecken: Sobald sich die Karte umdreht, stecken alle Tipps in der Skala. Wer dieselbe Lücke gewählt hat, teilt sich eine Marke, die Namen stehen untereinander darüber (bei mehr als drei: zwei Namen und „+ n“). Jede Marke bekommt ihr Urteil (grün mit Haken, rot mit Kreuz). Bekommen Anzweifler die Karte, zeigt sie kurz ein Namensschild („Anna klaut“, „Anna & Ben klauen“) und fliegt als Kopie in jede ihrer Zeilen unter „Zeitleisten“ (`Skala.klau()`). So lange bleiben die Karte dort und die Verlaufseinträge `stolen` verborgen.
 - Marke vergeben: Pixel-Knopf „Marke für …“ rechts in der Aktionszeile (`.knopf.neben`), danach ein Hinweis und für den Host „zurücknehmen“.
 - Marken-Protokoll: ganz unten, zugeklappt (`.protokoll`). Je Zeile Karte, Spieler, Ereignis und Stand danach.
 
@@ -251,6 +255,12 @@ Die Skala zeigt alle Karten ohne Scrollen, bis zum Höchstziel von 30 Karten. Da
 
 Seitlich scrollen lässt sich die Skala nur noch, wenn das Fenster selbst für die kleinste Form zu schmal ist (unter etwa 1200 px bei 30 Karten).
 
+## Namensvorschlag (`src/ui/namen.js`)
+
+Wer noch keinen Namen gespeichert hat (`state.name === ''`), findet auf der Startseite einen gewürfelten Vorschlag im Namensfeld: eine Eigenschaft und ein Hauptwort, z. B. „Tanzender Toaster“. Die Wortlisten `EIGENSCHAFTEN` und `HAUPTWOERTER` (nach Geschlecht `m`, `f`, `n`) stehen am Anfang der Datei. Die Eigenschaft bekommt die Endung, die ohne Artikel zum Geschlecht passt (-er, -e, -es); deshalb stehen dort nur Eigenschaften, deren Stamm sich dabei nicht ändert. Lange Eigenschaften werden nur mit Hauptwörtern kombiniert, mit denen der Name in 24 Zeichen passt. `tests/namen.test.js` prüft Listen, Endungen und Länge.
+
+Neben dem Feld sitzt der Würfel-Knopf (`.wuerfel-knopf`, Sprite `wuerfel(augen)` in `pixel.js`). Er würfelt einen neuen Namen, kippt dabei einmal und zeigt danach eine andere Augenzahl. Gespeichert wird ein Name wie bisher mit `setName()`: beim Würfeln, beim Ändern des Felds und beim Erstellen oder Beitreten. Der erste Vorschlag ohne Würfeln wird erst beim Erstellen oder Beitreten gespeichert; bis dahin kommt bei jedem Besuch ein neuer. Ein gespeicherter Name bleibt.
+
 ## Klänge (`src/ui/klang.js`)
 
 Reine Oberflächensache: Die Logik weiß nichts davon. Die Klänge entstehen im Browser mit der Web Audio API, es gibt keine Klangdateien (die Content-Security-Policy bleibt unverändert). Alle Klänge stehen als kurze Tonfolgen in der Tabelle `KLAENGE` am Anfang der Datei, darüber die Gesamtlautstärke `LAUT` und der Höhenfilter `HOEHEN`. Dort wird nachgestimmt.
@@ -262,10 +272,11 @@ Reine Oberflächensache: Die Logik weiß nichts davon. Die Klänge entstehen im 
 | `fest` | festgelegt (einmal je Karte) | `Skala.update()` bzw. `rolle()` |
 | `dreh`, `ziffer` | die Karte dreht sich um, jede Ziffer der Jahreszahl rastet ein | `Skala.rolle()`, `zeigeJahr()` |
 | `richtig` / `falsch` | die Karte landet in der Zeitleiste / liegt falsch | `Skala.layout()` / `update()` |
-| `tipp` | ein Anzweifler steckt seine Marke | `Skala.legeTipps()` |
+| `tipp` | ein Anzweifler steckt seine Marke (auch verdeckt: man hört, dass jemand getippt hat, nicht wo) | `ui.js` (Anzweifel-Phase) |
 | `klau` | die Karte fliegt zum Anzweifler | `Skala.klau()` |
 | `marke` | ein Spieler bekommt eine Marke | `ui.js` (Zeitleisten) |
 | `sieg` | der Dino feiert am Spielende | `Skala.layout()` |
+| `wuerfel` | ein neuer Name wird gewürfelt (Startseite) | `ui.js` (Würfel-Knopf) |
 
 Die Klänge hängen am Spielstand und an den Animationen, nicht an der eigenen Eingabe: Gäste und Zuschauer hören dasselbe wie der aktive Spieler. Beim Neuladen mitten im Zug erklingt nichts nachträglich. Ein Tab im Hintergrund bleibt still. Browser erlauben Ton erst nach einer Eingabe: Der `AudioContext` entsteht beim ersten Klick oder Tastendruck, bis dahin bleibt alles still. Der Schalter in der Ecke unten rechts (`.klang-schalter`, Symbole `ton` / `tonAus`) schaltet die Klänge aus und ein; die Einstellung liegt in `localStorage` unter `radino.klang`. Die Musik selbst betrifft das nicht.
 

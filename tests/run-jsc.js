@@ -6,6 +6,7 @@ import './match.test.js';
 import './tokens.test.js';
 import './audio.test.js';
 import './endgame.test.js';
+import './namen.test.js';
 
 run((line) => print(line)).then((failed) => {
   if (failed) throw new Error(failed + ' Test(s) fehlgeschlagen');

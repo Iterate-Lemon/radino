@@ -59,7 +59,7 @@ export function createGame(settings = {}) {
     round: 0, // zählt jede gezogene Karte
     // { s, by, slot, locked, correct, round } – mit Marken zusätzlich:
     // fixed (Lücke festgelegt, noch verdeckt), challenge { until, picks: [{ p, slot }], passed: [id] },
-    // wonBy (Anzweifler, der die Karte bekam), grant ({ by } – in diesem Zug vergebene Marke)
+    // wonBy ([id]: Anzweifler, die die Karte bekamen), grant ({ by } – in diesem Zug vergebene Marke)
     card: null,
     deck: [],
     discard: [],
@@ -78,6 +78,10 @@ export function upgradeGame(state) {
   for (const p of state.players || []) if (!Number.isInteger(p.tokens)) p.tokens = TOKENS.start;
   if (!Array.isArray(state.tokenLog)) state.tokenLog = [];
   if (!Array.isArray(state.out)) state.out = [];
+  // Früher bekam nur ein Anzweifler die Karte: wonBy war eine einzelne ID.
+  if (state.card && 'wonBy' in state.card && !Array.isArray(state.card.wonBy)) {
+    state.card.wonBy = state.card.wonBy ? [state.card.wonBy] : [];
+  }
   return state;
 }
 
@@ -113,14 +117,16 @@ function closeSpent(s) {
   for (const e of s.tokenLog) if (e.k === 'spent' && e.won === null) e.won = false;
 }
 
-/** Lücken, die in der Anzweifel-Phase noch frei sind. */
+/**
+ * Lücken, die in der Anzweifel-Phase gewählt werden können. Gesperrt ist nur die Lücke
+ * des aktiven Spielers: Mehrere Anzweifler dürfen dieselbe Lücke wählen.
+ */
 export function freeChallengeSlots(state) {
   const card = state.card;
   if (state.phase !== 'challenge' || !card?.challenge) return [];
   const n = playerById(state, card.by)?.timeline.length ?? 0;
-  const taken = new Set([card.slot, ...card.challenge.picks.map((c) => c.slot)]);
   const out = [];
-  for (let i = 0; i <= n; i++) if (!taken.has(i)) out.push(i);
+  for (let i = 0; i <= n; i++) if (i !== card.slot) out.push(i);
   return out;
 }
 
@@ -143,24 +149,27 @@ function resolveCard(s, ctx, effects) {
   const years = p.timeline.map(ctx.yearOf);
   const year = ctx.yearOf(card.s);
   const ok = slotIsCorrect(years, card.slot, year);
-  let thief = null;
+  // Lag der aktive Spieler falsch, bekommt jeder Anzweifler mit richtigem Tipp die Karte
+  // (in der Reihenfolge des Anzweifelns).
+  const thieves = [];
   if (!ok && card.challenge) {
-    // Reihenfolge von picks = Reihenfolge des Anzweifelns: der Erste gewinnt.
-    const hit = card.challenge.picks.find((c) => slotIsCorrect(years, c.slot, year) && playerById(s, c.p));
-    if (hit) thief = playerById(s, hit.p);
+    for (const c of card.challenge.picks) {
+      const t = playerById(s, c.p);
+      if (t && !thieves.includes(t) && slotIsCorrect(years, c.slot, year)) thieves.push(t);
+    }
   }
   card.locked = true;
   card.correct = ok;
   if (s.settings.tokens) {
-    card.wonBy = thief ? thief.id : null;
+    card.wonBy = thieves.map((t) => t.id);
     card.grant = null;
-    for (const e of s.tokenLog) if (e.k === 'spent' && e.won === null) e.won = !!thief && e.p === thief.id;
+    for (const e of s.tokenLog) if (e.k === 'spent' && e.won === null) e.won = card.wonBy.includes(e.p);
   }
   if (ok) p.timeline.splice(card.slot, 0, card.s);
-  else if (thief) thief.timeline = sortTimeline([...thief.timeline, card.s], ctx);
-  else s.discard.push(card.s);
+  else if (!thieves.length) s.discard.push(card.s);
+  for (const t of thieves) t.timeline = sortTimeline([...t.timeline, card.s], ctx);
   addLog(s, { k: 'placed', p: p.id, s: card.s, ok });
-  if (thief) addLog(s, { k: 'stolen', p: thief.id, from: p.id, s: card.s });
+  for (const t of thieves) addLog(s, { k: 'stolen', p: t.id, from: p.id, s: card.s });
   s.phase = 'reveal';
   // War das der letzte Zug der Runde, steht jetzt fest, ob jemand gewonnen hat.
   if (!lapLeft(s).length) settleLap(s, effects);
@@ -533,12 +542,13 @@ export function publicView(state, ctx) {
     if (state.settings.tokens) {
       const ch = card.challenge;
       cardView.fixed = !!card.fixed;
-      cardView.wonBy = card.wonBy ?? null;
+      cardView.wonBy = Array.isArray(card.wonBy) ? card.wonBy.slice() : card.wonBy ? [card.wonBy] : [];
       cardView.grant = card.grant ? { by: card.grant.by } : null;
       cardView.challenge = ch
         ? {
             until: ch.until, // Uhr des Hosts (ms); app.js rechnet für die Oberfläche um
-            picks: ch.picks.map((c) => ({ p: c.p, slot: c.slot })),
+            // Bis zum Aufdecken sieht niemand, welche Lücke die anderen gewählt haben: nur, wer getippt hat.
+            picks: ch.picks.map((c) => (showSong ? { p: c.p, slot: c.slot } : { p: c.p })),
             passed: ch.passed.slice(),
             pending: pendingChallengers(state),
             freeSlots: freeChallengeSlots(state),

@@ -15,8 +15,9 @@
 //   fest:     true = die Lücke ist festgelegt, die Karte ist eingerastet und noch verdeckt
 //   zweifel:  { frei: [Lücke], tipps: [{ key, slot, name, ich, urteil: null|'gut'|'schlecht' }] }
 //             frei = Lücken, in die ich meine Marke stecken darf; tipps = Marken der Anzweifler
-//   dieb:     Name des Anzweiflers, der die Karte bekommt (bei mode 'offen' nach einem Fehlgriff)
-//   geklaut:  true = die Karte ist schon beim Dieb und hängt nicht mehr über der Skala
+//             (mehrere in derselben Lücke teilen sich eine Marke mit allen Namen)
+//   dieb:     Namen der Anzweifler, die die Karte bekommen, als Text (bei mode 'offen' nach einem Fehlgriff)
+//   geklaut:  true = die Karte ist schon bei den Dieben und hängt nicht mehr über der Skala
 
 import { h, warte } from './dom.js';
 import { pixeltext, kannPixel, dino, symbol, marke } from './pixel.js';
@@ -80,8 +81,6 @@ export class Skala {
     // Klänge: was schon zu hören war, damit nichts doppelt oder beim Neuladen erklingt
     this.klangSlot = null;
     this.festRunde = null;
-    this.tippRunde = null;
-    this.tippGehoert = new Set();
 
     this.linie = h('div', { class: 'skala-linie' });
     this.lage = h('div', { class: 'skala-karten' });
@@ -122,7 +121,7 @@ export class Skala {
 
   entfernen() {
     this.klauNr += 1;
-    this.flieger?.remove();
+    this.landeFlieger();
     document.removeEventListener('keydown', this.tasten);
     this.ro.disconnect();
   }
@@ -269,7 +268,7 @@ export class Skala {
     this.gerollt = null;
     this.klauNr += 1;
     this.fliegt = false;
-    this.flieger?.remove();
+    this.landeFlieger();
     this.kachel.classList.remove('geklaut');
     this.zeiger.classList.add('sofort');
     this.kachel.classList.add('rueck');
@@ -439,25 +438,25 @@ export class Skala {
   legeTipps(schritt = this.geom.w) {
     const { mitten, W } = this.geom;
     const zw = this.view.zweifel;
-    // Klang nur für Marken, die jetzt neu gesteckt werden (nicht beim ersten Zeichnen einer Runde).
-    const leise = this.tippRunde !== this.view.runde;
-    if (leise) { this.tippRunde = this.view.runde; this.tippGehoert.clear(); }
+    // Den Klang beim Stecken spielt ui.js: Die Marken der anderen stecken bis zum Aufdecken unsichtbar.
     const soll = new Map();
     if (zw) {
-      const belegt = new Set();
+      // Wer dieselbe Lücke gewählt hat, steckt mit einer gemeinsamen Marke, darüber alle Namen.
       for (const t of zw.tipps) {
         if (t.slot >= mitten.length) continue;
-        belegt.add(t.slot);
-        soll.set(`p:${t.key}`, { ...t, art: 'fest' });
-        if (!this.tippGehoert.has(t.key)) {
-          this.tippGehoert.add(t.key);
-          if (!leise) spiele('tipp');
+        const da = soll.get(`p:${t.slot}`);
+        if (da) {
+          da.namen.push(t.name);
+          da.ich ||= t.ich;
+        } else {
+          soll.set(`p:${t.slot}`, { slot: t.slot, art: 'fest', namen: [t.name], ich: t.ich, urteil: t.urteil });
         }
       }
+      for (const t of soll.values()) t.name = t.namen.length > 3 ? [...t.namen.slice(0, 2), `+ ${t.namen.length - 2}`] : t.namen;
       for (const i of zw.frei) {
-        if (belegt.has(i) || i >= mitten.length) continue;
+        if (soll.has(`p:${i}`) || i >= mitten.length) continue;
         const meins = this.tippWahl?.slot === i;
-        soll.set(`f:${i}`, { slot: i, art: meins ? 'wahl' : 'frei', name: meins ? 'dein Tipp?' : '' });
+        soll.set(`f:${i}`, { slot: i, art: meins ? 'wahl' : 'frei', name: meins ? ['dein Tipp?'] : [] });
       }
     }
     for (const [key, el] of this.tippEls) {
@@ -479,7 +478,10 @@ export class Skala {
       const x = mitten[t.slot];
       el.style.transform = `translateX(${x}px)`;
       const name = el.querySelector('.t-name');
-      if (name.textContent !== t.name) name.textContent = t.name;
+      if (name.dataset.namen !== JSON.stringify(t.name)) {
+        name.dataset.namen = JSON.stringify(t.name);
+        name.replaceChildren(...t.name.map((n) => h('span', {}, n)));
+      }
       name.style.maxWidth = `${Math.max(48, schritt - 10)}px`;
       const flaeche = el.querySelector('.t-flaeche');
       if (flaeche) {
@@ -504,8 +506,9 @@ export class Skala {
   }
 
   /**
-   * Ein Anzweifler bekommt die Karte: Sie zeigt kurz sein Namensschild und fliegt dann
-   * zu seiner Zeitleiste (ziel() liefert das Element dort). Liefert true, wenn sie ankam.
+   * Anzweifler bekommen die Karte: Sie zeigt kurz ein Namensschild und fliegt dann zu
+   * ihren Zeitleisten, bei mehreren Dieben als Kopie zu jedem (ziel() liefert die Elemente
+   * dort, eins oder eine Liste). Liefert true, wenn sie ankam.
    */
   async klau(text, ziel) {
     this.klauNr += 1;
@@ -519,39 +522,52 @@ export class Skala {
 
     const von = this.kachel.getBoundingClientRect();
     const song = this.view.reveal?.song;
-    const f = karte('flieger', song ? [
-      h('div', { class: 'k-jahr' }, pixeltext(song.y)),
-      h('div', { class: 'k-text' }, h('span', { class: 'k-kuenstler' }, song.a), h('span', { class: 'k-titel' }, song.t)),
-    ] : []);
-    // Maße der Karte im Spiel (sie kann größer sein als die Karten der Zeitleiste)
-    for (const name of ['--kw', '--kh', '--kp', '--kt']) f.style.setProperty(name, this.zeiger.style.getPropertyValue(name));
-    if (song) f.style.setProperty('--farbe', farbe(song));
-    f.style.left = `${von.left}px`;
-    f.style.top = `${von.top}px`;
-    this.flieger = f;
-    document.body.append(f);
+    let ziele = ziel?.() ?? null;
+    ziele = (Array.isArray(ziele) ? ziele : [ziele]).filter(Boolean);
+    if (!ziele.length) ziele = [null];
+    this.landeFlieger();
+    const flieger = ziele.map((z, i) => {
+      const f = karte('flieger', song ? [
+        h('div', { class: 'k-jahr' }, pixeltext(song.y)),
+        h('div', { class: 'k-text' }, h('span', { class: 'k-kuenstler' }, song.a), h('span', { class: 'k-titel' }, song.t)),
+      ] : []);
+      // Maße der Karte im Spiel (sie kann größer sein als die Karten der Zeitleiste)
+      for (const name of ['--kw', '--kh', '--kp', '--kt']) f.style.setProperty(name, this.zeiger.style.getPropertyValue(name));
+      if (song) f.style.setProperty('--farbe', farbe(song));
+      f.style.left = `${von.left}px`;
+      f.style.top = `${von.top}px`;
+      document.body.append(f);
+      const r = z?.getBoundingClientRect();
+      const dx = r ? r.left + r.width / 2 - (von.left + von.width / 2) : 0;
+      const dy = r ? r.top + r.height / 2 - (von.top + von.height / 2) : window.innerHeight - von.top;
+      // Mehrere Kopien heben gemeinsam ab und fächern dann zu ihren Zeilen aus.
+      const flug = f.animate([
+        { transform: 'translate(0, 0) scale(1)' },
+        { transform: `translate(${(i - (ziele.length - 1) / 2) * 14}px, -22px) scale(1.05)`, offset: 0.28, easing: 'cubic-bezier(0.5, 0, 0.9, 0.5)' },
+        { transform: `translate(${dx}px, ${dy}px) scale(0.28)` },
+      ], { duration: 640 + i * 90, fill: 'forwards' });
+      return { f, flug };
+    });
+    this.flieger = flieger.map((x) => x.f);
     this.fliegt = true;
     this.zeiger.classList.add('weg');
     spiele('klau');
 
-    const z = ziel?.()?.getBoundingClientRect();
-    const dx = z ? z.left + z.width / 2 - (von.left + von.width / 2) : 0;
-    const dy = z ? z.top + z.height / 2 - (von.top + von.height / 2) : window.innerHeight - von.top;
-    const flug = f.animate([
-      { transform: 'translate(0, 0) scale(1)' },
-      { transform: 'translate(0, -22px) scale(1.05)', offset: 0.28, easing: 'cubic-bezier(0.5, 0, 0.9, 0.5)' },
-      { transform: `translate(${dx}px, ${dy}px) scale(0.28)` },
-    ], { duration: 640, fill: 'forwards' });
     // In einem Tab im Hintergrund steht die Animation still: dann nicht ewig warten.
-    await Promise.race([flug.finished.catch(() => {}), warte(1200)]);
-    f.remove();
-    if (this.flieger === f) this.flieger = null;
+    await Promise.race([Promise.all(flieger.map((x) => x.flug.finished.catch(() => {}))), warte(1200 + flieger.length * 90)]);
+    for (const { f } of flieger) f.remove();
+    if (this.flieger?.[0] === flieger[0].f) this.flieger = null;
     return nr === this.klauNr;
   }
 
   klauAbbruch() {
     this.klauNr += 1;
-    this.flieger?.remove();
+    this.landeFlieger();
+  }
+
+  // Fliegende Kopien der Karte sofort entfernen.
+  landeFlieger() {
+    for (const f of this.flieger || []) f.remove();
     this.flieger = null;
   }
 

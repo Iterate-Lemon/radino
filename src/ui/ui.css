@@ -146,7 +146,8 @@ ol, ul { list-style: none; }
 /* ── Start ─────────────────────────────────────────────────────────────────── */
 
 .start { min-height: 100vh; display: flex; flex-direction: column; padding-bottom: 64px; }
-.start-inhalt { margin-top: 11vh; max-width: 560px; }
+/* So breit, dass auch der längste Namensvorschlag (namen.js) ganz ins Feld passt */
+.start-inhalt { margin-top: 11vh; max-width: 664px; }
 .start .wortmarke { --p: 12px; }
 .start .unterzeile { margin-top: 28px; font-size: 19px; color: var(--leise); }
 .start-form { margin-top: 48px; display: flex; align-items: flex-end; gap: 28px; }
@@ -161,6 +162,22 @@ ol, ul { list-style: none; }
   border-radius: 0;
 }
 .feld input::placeholder { color: var(--ganz-leise); }
+/* Name und Würfel für einen neuen Vorschlag */
+.name-zeile { display: flex; align-items: flex-end; gap: 14px; }
+.name-zeile input { flex: 1; min-width: 0; }
+.wuerfel-knopf { appearance: none; border: 0; background: none; padding: 4px; margin: 0 0 6px; cursor: pointer; --p: 3px; }
+.wuerfel-knopf .wuerfel { transition: translate 0.08s steps(2); }
+.wuerfel-knopf:hover .wuerfel { translate: 0 -3px; }
+.wuerfel-knopf:active .wuerfel { translate: 0 0; }
+/* gewürfelt: ein Hüpfer mit Vierteldrehungen, in ganzen Pixelschritten */
+.wuerfel-knopf.rollt .wuerfel { animation: rollen 0.36s steps(1); }
+@keyframes rollen {
+  0% { rotate: 0deg; translate: 0 0; }
+  20% { rotate: 90deg; translate: 0 -9px; }
+  45% { rotate: 180deg; translate: 0 -12px; }
+  70% { rotate: 270deg; translate: 0 -6px; }
+  100% { rotate: 360deg; translate: 0 0; }
+}
 .feld input:focus { outline: none; border-bottom-color: var(--schrift); }
 .start .hinweis { margin-top: 18px; font-size: 13px; color: var(--leise); }
 .gespeichert {
@@ -626,11 +643,14 @@ dialog.frage .linkfeld { display: block; width: 100%; margin-top: 16px; }
 .t-kopf { position: absolute; left: -10px; top: calc(var(--kopf) - 31px); width: 20px; height: 20px; display: grid; place-items: center; --p: 2px; color: var(--leise); transition: top 0.5s var(--weich); }
 .t-kopf > * { grid-area: 1 / 1; }
 .t-nadel { position: absolute; left: -1px; top: calc(var(--kopf) - 11px); width: 2px; height: 40px; background: var(--schrift); transition: top 0.5s var(--weich); }
+/* Namen über der Marke: Haben mehrere dieselbe Lücke gewählt, stehen sie untereinander und wachsen nach oben. */
 .t-name {
-  position: absolute; left: 0; top: calc(var(--kopf) - 55px); translate: -50% 0;
-  overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+  position: absolute; left: 0; top: calc(var(--kopf) - 37px); translate: -50% -100%;
+  display: flex; flex-direction: column; align-items: center;
+  overflow: hidden; white-space: nowrap;
   font-size: 12px; font-weight: 700; line-height: 18px; color: var(--schrift);
 }
+.t-name > span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
 .t-urteil { display: none; width: 22px; height: 22px; place-items: center; color: var(--grund); box-shadow: 0 0 0 3px var(--grund); }
 /* freier Platz: nur der vorgezeichnete Umriss */
 .tipp.frei .marke-gross, .tipp.frei .t-nadel { display: none; }

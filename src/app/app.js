@@ -19,6 +19,7 @@ import { GuestSession } from './guest-session.js';
 const NAME_KEY = 'radino.name';
 const VOLUME_KEY = 'radino.volume';
 const HOSTING_KEY = 'radino.hosting';
+const TIP_KEY = 'radino.tipp'; // eigener Tipp in der Anzweifel-Phase (siehe ownTip)
 const SAVE_SCOPE = 'user-library-modify';
 
 const REJECT_TEXT = {
@@ -69,6 +70,15 @@ export function createApp({ db, testMode = false }) {
     }, ms);
     changed();
   };
+  // Regel „Marken“: Bis zum Aufdecken verrät der Spielstand niemandem, welche Lücke die
+  // anderen gewählt haben, auch nicht die eigene. Die merkt sich jeder Spieler selbst
+  // (im Tab, damit sie ein Neuladen übersteht).
+  const roomKey = () => (room ? room.roomId ?? room.invite?.roomId ?? null : null);
+  const ownTip = (round) => {
+    const t = session.read(TIP_KEY);
+    return t && t.room === roomKey() && t.round === round && Number.isInteger(t.slot) ? t.slot : null;
+  };
+
   /** Der Song, den dieser Spieler gerade über sein eigenes Spotify hört (oder null). */
   const ownTrack = () => {
     if (!room || room.music !== spotify) return null;
@@ -202,11 +212,11 @@ export function createApp({ db, testMode = false }) {
             // Endzeitpunkt in der eigenen Uhr (Date.now()), null = ohne Zeitlimit
             endsAt: ch.until === null || ch.until === undefined ? null : isHost ? ch.until : Math.round(room.transport.toLocalTime(ch.until)),
             lockedSlot: card.slot,
-            picks: ch.picks.map((c) => ({ ...c })),
+            picks: ch.picks.map((c) => ({ ...c })), // bis zum Aufdecken ohne slot
             passed: ch.passed.slice(),
             pending: ch.pending.slice(),
             freeSlots: ch.freeSlots.slice(),
-            mine: ch.picks.find((c) => c.p === me)?.slot ?? null,
+            mine: ch.picks.some((c) => c.p === me) ? ch.picks.find((c) => c.p === me).slot ?? ownTip(card.round) : null,
           }
         : null;
       const maySay = !!ch && ch.pending.includes(me);
@@ -337,7 +347,9 @@ export function createApp({ db, testMode = false }) {
       room?.act('lock');
     },
     challenge(slot) {
-      room?.act('challenge', { slot });
+      if (!room) return;
+      session.write(TIP_KEY, { room: roomKey(), round: room.view()?.card?.round ?? null, slot });
+      room.act('challenge', { slot });
     },
     passChallenge() {
       room?.act('pass');

@@ -105,7 +105,12 @@ test('Anzweifeln: Berechtigung und gesperrte Lücken', () => {
   eq(err(s, { type: 'challenge', by: 'G' }), 'invalid');
   s = apply(s, { type: 'challenge', by: 'G', slot: 0 });
   eq(P(s, 'G').tokens, 1);
-  // Nur zwei Lücken, beide vergeben: die übrigen gelten als gepasst, es wird aufgedeckt.
+  // Eine schon gewählte Lücke bleibt für die anderen frei.
+  eq(s.phase, 'challenge');
+  eq(publicView(s, ctx).card.challenge.freeSlots, [0]);
+  s = apply(s, { type: 'challenge', by: 'F', slot: 0 });
+  eq(s.phase, 'challenge', 'E steht noch aus');
+  s = apply(s, { type: 'pass', by: 'E' });
   eq(s.phase, 'reveal');
 });
 
@@ -125,9 +130,10 @@ test('Anzweifeln: ohne Marke nicht möglich, doppelt nicht möglich', () => {
 test('Aufdecken: aktiver Spieler richtig, eingesetzte Marken sind weg', () => {
   let s = locked({ guests: ['G', 'F'] }, 0); // a=1970 vor 1980: richtig
   s = apply(s, { type: 'challenge', by: 'G', slot: 1 });
+  s = apply(s, { type: 'pass', by: 'F' });
   eq(s.phase, 'reveal');
   eq(s.card.correct, true);
-  eq(s.card.wonBy, null);
+  eq(s.card.wonBy, []);
   eq(P(s, 'H').timeline, ['a', 'b']);
   eq(P(s, 'G').tokens, 1);
   eq(P(s, 'G').timeline, ['c']);
@@ -140,16 +146,19 @@ test('Aufdecken: aktiver Spieler richtig, eingesetzte Marken sind weg', () => {
 test('Aufdecken: aktiver falsch, Anzweifler richtig bekommt die Karte einsortiert', () => {
   let s = locked({ guests: ['G', 'F'], card: 'h' }, 0); // h=2020 gehört hinter 1980
   s = apply(s, { type: 'challenge', by: 'G', slot: 1 });
+  eq(s.phase, 'challenge', 'F steht noch aus');
+  s = apply(s, { type: 'pass', by: 'F' });
   eq(s.phase, 'reveal');
   eq(s.card.correct, false);
-  eq(s.card.wonBy, 'G');
+  eq(s.card.wonBy, ['G']);
   eq(P(s, 'H').timeline, ['b']);
   eq(P(s, 'G').timeline, ['c', 'h'], 'nach Jahr einsortiert');
   eq(s.discard.includes('h'), false);
   eq(s.tokenLog[0].won, true);
   eq(s.log, [{ k: 'placed', p: 'H', s: 'h', ok: false }, { k: 'stolen', p: 'G', from: 'H', s: 'h' }]);
   const v = publicView(s, ctx);
-  eq(v.card.wonBy, 'G');
+  eq(v.card.wonBy, ['G']);
+  eq(v.card.challenge.picks, [{ p: 'G', slot: 1 }], 'nach dem Aufdecken mit Lücke');
   eq(v.log[1].song.y, 2020);
   eq(v.players.find((p) => p.id === 'G').tokens, 1);
 });
@@ -163,24 +172,60 @@ test('Aufdecken: alle falsch, Karte ist weg', () => {
   eq(s.phase, 'challenge', 'F steht noch aus');
   s = apply(s, { type: 'pass', by: 'F' });
   eq(s.phase, 'reveal');
-  eq(s.card.wonBy, null);
+  eq(s.card.wonBy, []);
   ok(s.discard.includes('h'));
   eq(s.players.map((p) => p.timeline.length), [3, 1, 1]);
   eq(s.tokenLog[0].won, false);
 });
 
-test('Aufdecken: bei gleichen Jahren gewinnt, wer zuerst angezweifelt hat', () => {
-  let s = game({ guests: ['G', 'F'], card: 'f' }); // f=1980
+test('Aufdecken: alle richtigen Anzweifler bekommen die Karte', () => {
+  let s = game({ guests: ['G', 'F', 'E'], card: 'f' }); // f=1980
   P(s, 'H').timeline = ['a', 'b', 'c']; // 1970, 1980, 1990 -> Lücken 1 und 2 richtig
   s = apply(s, { type: 'select', by: 'H', slot: 0 });
   s = apply(s, { type: 'lock', by: 'H', now: NOW });
   s = apply(s, { type: 'challenge', by: 'F', slot: 2 });
-  eq(err(s, { type: 'challenge', by: 'G', slot: 2 }), 'taken', 'von F gewählt');
+  s = apply(s, { type: 'challenge', by: 'E', slot: 3 });
   s = apply(s, { type: 'challenge', by: 'G', slot: 1 });
   eq(s.phase, 'reveal');
-  eq(s.card.wonBy, 'F');
+  eq(s.card.correct, false);
+  eq(s.card.wonBy, ['F', 'G'], 'in der Reihenfolge des Anzweifelns');
   eq(P(s, 'F').timeline, ['f', 'c']);
-  eq(s.tokenLog.map((e) => [e.p, e.won]), [['F', true], ['G', false]]);
+  eq(P(s, 'G').timeline, ['f', 'c']);
+  eq(P(s, 'E').timeline, ['c'], 'falscher Tipp');
+  eq(P(s, 'H').timeline, ['a', 'b', 'c']);
+  eq(s.discard.includes('f'), false);
+  eq(s.tokenLog.map((e) => [e.p, e.won]), [['F', true], ['E', false], ['G', true]]);
+  eq(s.log.map((e) => [e.k, e.p]), [['placed', 'H'], ['stolen', 'F'], ['stolen', 'G']]);
+  eq(publicView(s, ctx).card.wonBy, ['F', 'G']);
+});
+
+test('Anzweifeln: mehrere wählen dieselbe Lücke, alle bekommen die Karte', () => {
+  let s = locked({ guests: ['G', 'F'], card: 'h' }, 0); // h=2020 gehört hinter 1980
+  s = apply(s, { type: 'challenge', by: 'G', slot: 1 });
+  s = apply(s, { type: 'challenge', by: 'F', slot: 1 });
+  eq(s.phase, 'reveal');
+  eq(s.card.wonBy, ['G', 'F']);
+  eq(P(s, 'G').timeline, ['c', 'h']);
+  eq(P(s, 'F').timeline, ['c', 'h']);
+  eq([P(s, 'G').tokens, P(s, 'F').tokens], [1, 1]);
+});
+
+test('Anzweifeln: Tipps der anderen bleiben bis zum Aufdecken verborgen', () => {
+  let s = game({ guests: ['G', 'F', 'E'], card: 'h' });
+  P(s, 'H').timeline = ['a', 'b', 'c'];
+  s = apply(s, { type: 'select', by: 'H', slot: 0 });
+  s = apply(s, { type: 'lock', by: 'H', now: NOW });
+  s = apply(s, { type: 'challenge', by: 'G', slot: 3 });
+  s = apply(s, { type: 'pass', by: 'F' });
+  const v = publicView(s, ctx).card.challenge;
+  eq(v.picks, [{ p: 'G' }], 'wer getippt hat, aber nicht wo');
+  eq(v.passed, ['F']);
+  eq(v.pending, ['E']);
+  eq(v.freeSlots, [1, 2, 3], 'freie Lücken verraten nichts');
+  ok(!JSON.stringify(publicView(s, ctx)).includes('"slot":3'), 'Lücke von G steht nirgends in der Sicht');
+  s = apply(s, { type: 'challenge', by: 'E', slot: 3 });
+  eq(s.phase, 'reveal');
+  eq(publicView(s, ctx).card.challenge.picks, [{ p: 'G', slot: 3 }, { p: 'E', slot: 3 }]);
 });
 
 test('Geklaute Karte kann das Kartenziel erreichen', () => {
@@ -317,6 +362,7 @@ test('Marke zurücknehmen: nur Host, danach erneut vergebbar', () => {
 test('Später Beitritt bekommt Startmarken, Neues Spiel setzt zurück', () => {
   let s = locked({ guests: ['G', 'F'] }, 0);
   s = apply(s, { type: 'challenge', by: 'G', slot: 1 });
+  s = apply(s, { type: 'pass', by: 'F' });
   s = apply(s, { type: 'giveToken', by: 'F' });
   s = apply(s, { type: 'addPlayer', by: 'system', id: 'N', name: 'Neu' });
   eq(P(s, 'N').tokens, TOKENS.start);
@@ -358,6 +404,13 @@ test('Alte gespeicherte Spiele lassen sich laden', () => {
   s = apply(s, { type: 'lock', by: 'H' });
   eq(s.phase, 'reveal');
   ok(publicView(s, ctx).card.song);
+  // Aufgedeckte Karte aus der Zeit, als nur ein Anzweifler die Karte bekam
+  let t = locked({ card: 'h' }, 0);
+  t = apply(t, { type: 'challenge', by: 'G', slot: 1 });
+  t.card.wonBy = 'G';
+  eq(upgradeGame(t).card.wonBy, ['G']);
+  t.card.wonBy = null;
+  eq(upgradeGame(t).card.wonBy, []);
 });
 
 test('Protokoll: neue Gast-Aktionen', () => {

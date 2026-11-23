@@ -5,6 +5,7 @@ import './match.test.js';
 import './tokens.test.js';
 import './audio.test.js';
 import './endgame.test.js';
+import './namen.test.js';
 
 const out = document.getElementById('out');
 const lines = [];

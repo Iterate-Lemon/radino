@@ -222,6 +222,37 @@ export function marke(klasse = '') {
   return sprite(MARKE, MARKE_FARBEN, `marke-gross ${klasse}`.trim());
 }
 
+// Der Würfel für den Namensvorschlag: ein heller Würfel mit dunklen Augen und
+// sichtbarer Unterkante. augen = 1 bis 6.
+const WUERFEL_FARBEN = {
+  r: '#8a7a5e', // Rand
+  h: '#fff4d6', // Licht
+  m: '#eadfc4', // Fläche
+  s: '#c9b991', // Schatten
+  d: '#5b4e3d', // Unterkante
+  p: '#1d150b', // Augen
+};
+const AUGEN = {
+  1: [[4, 4]],
+  2: [[2, 2], [6, 6]],
+  3: [[2, 2], [4, 4], [6, 6]],
+  4: [[2, 2], [6, 2], [2, 6], [6, 6]],
+  5: [[2, 2], [6, 2], [4, 4], [2, 6], [6, 6]],
+  6: [[2, 2], [2, 4], [2, 6], [6, 2], [6, 4], [6, 6]],
+};
+export function wuerfel(augen = 5, klasse = '') {
+  const z = Array.from({ length: 10 }, (_, y) => Array.from({ length: 9 }, (_, x) => {
+    if (y === 9) return x > 0 && x < 8 ? 'd' : '.';
+    const rand = x === 0 || x === 8 || y === 0 || y === 8;
+    if (rand) return (x === 0 || x === 8) && (y === 0 || y === 8) ? '.' : 'r';
+    if (y === 1 || x === 1) return y === 7 || x === 7 ? 'm' : 'h';
+    if (y === 7 || x === 7) return 's';
+    return 'm';
+  }));
+  for (const [x, y] of AUGEN[augen] || AUGEN[5]) z[y][x] = 'p';
+  return sprite(z.map((zeile) => zeile.join('')), WUERFEL_FARBEN, `wuerfel ${klasse}`.trim());
+}
+
 const DINO_FARBEN = {
   o: '#12301f', // Kontur
   g: '#55b25c', // Grün
