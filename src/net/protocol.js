@@ -17,6 +17,7 @@ const finite = (x) => typeof x === 'number' && Number.isFinite(x);
 
 export const GUEST_ACTIONS = ['select', 'lock', 'next', 'skipSong', 'challenge', 'pass', 'giveToken'];
 export const AUDIO_STATES = ['off', 'login', 'connecting', 'ready', 'error'];
+export const AUDIO_CONTROLS = ['replay', 'stop', 'pause', 'resume'];
 
 function parse(raw, max) {
   if (typeof raw !== 'string' || raw.length > max) return null;
@@ -56,12 +57,18 @@ export function parseGuestMessage(raw) {
       return out;
     }
     case 'ctl':
-      return m.c === 'replay' || m.c === 'stop' ? { t: 'ctl', c: m.c } : null;
+      return AUDIO_CONTROLS.includes(m.c) ? { t: 'ctl', c: m.c } : null;
     case 'time':
       return finite(m.c) ? { t: 'time', c: m.c } : null;
     case 'audio-ack':
       if (!int(m.seq, 0, 1e9) || typeof m.ok !== 'boolean') return null;
-      return { t: 'audio-ack', seq: m.seq, ok: m.ok, reason: str(m.reason, 40) ? m.reason : undefined };
+      return {
+        t: 'audio-ack',
+        seq: m.seq,
+        ok: m.ok,
+        reason: str(m.reason, 40) ? m.reason : undefined,
+        duration: int(m.duration, 1, 36e5) ? m.duration : undefined, // Songlänge in ms
+      };
     case 'audio-state':
       if (!AUDIO_STATES.includes(m.s)) return null;
       return { t: 'audio-state', s: m.s, msg: str(m.msg, 120) ? m.msg : undefined };

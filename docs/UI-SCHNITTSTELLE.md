@@ -10,6 +10,7 @@ Der Ordner besteht derzeit aus:
 | `ui.js` | Bildschirme (Start, Verbinden, Lobby, Spiel mit Spielende), Meldungen, Rückfragen |
 | `skala.js` | die Zeitleiste als Senderskala mit Songkarten, Auswahl und Aufdeck-Animation |
 | `pixel.js` | eigene Pixelschrift, Dino-Maskottchen, Symbole (alles als SVG gezeichnet) |
+| `klang.js` | leise Klänge zu Knöpfen und Animationen, im Browser erzeugt (siehe „Klänge“) |
 | `dom.js` | kleine DOM-Helfer |
 | `ui.css` | sämtliche Gestaltung |
 
@@ -106,6 +107,7 @@ Ob eine Schaltfläche aktiv sein soll, steht in `state.room.can.*`. Die Oberflä
   log: [{ k: 'placed'|'skipped'|'turnSkipped'|'joined'|'left'|'stolen'|'token'|'tokenRevoked', p?, ok?, song?, reason?, name?, from?, by? }],
   tokenLog: [TokenEntry],          // Marken-Protokoll des ganzen Spiels, älteste zuerst (höchstens 500)
   audio: { [playerId]: { s: <Spotify-Status>, msg, play: 'preparing'|'ready'|'playing'|'late'|'failed:<grund>'|null } },
+  musicPaused: boolean,            // die Musik ist für alle angehalten (siehe „Musik anhalten“)
 }
 Player = { id, name, host, connected, timeline: [{ id, t, a, y, img }], tokens: number } // Zeitleiste nach Jahr sortiert
 ```
@@ -114,11 +116,17 @@ Player = { id, name, host, connected, timeline: [{ id, t, a, y, img }], tokens: 
 
 `img` ist eine Cover-URL von `i.scdn.co`, falls beim Abgleich gefunden. Sonst ist der Wert `null`.
 
+## Musik anhalten
+
+`pauseMusic()` hält die Musik für alle an, `resumeMusic()` spielt an derselben Stelle weiter. Drücken darf, wer `can.audioControl` hat (Host und aktiver Spieler). Bei „Jeder hört selbst“ hält jeder Player an und startet synchron wieder. Solange `game.musicPaused` gilt, kommt kein Lied: Beginnt in der Pause die nächste Runde (oder wird ein Song übersprungen), wartet der neue Song, bis jemand weiterspielt. `replay()` („Nochmal“) hebt die Pause auf und beginnt den Song von vorn. War der Song beim Anhalten schon zu Ende, beginnt er mit `resumeMusic()` ebenfalls von vorn. Spielende durch den Host und „Neues Spiel“ heben die Pause auf. Lädt der Host die Seite neu, ist die Pause vergessen (die Musik steht dann ohnehin, bis jemand „Nochmal“ drückt).
+
+In `src/ui/` sitzen „Nochmal“ und der Umschalter „Pause“ / „Weiter“ (Pixel-Symbole `pause` und `spiel`) neben der Lautstärke. Alle Spieler sehen dort den Hinweis „Musik pausiert“.
+
 ## Regel „Marken“ (optional, `settings.tokens`)
 
 Der Host schaltet die Regel in der Lobby ein (`updateSettings({ tokens: true })`). Ist sie aus, gibt es weder die Phase `challenge` noch die Zusatzfelder an `card`, und alle neuen `can.*` sind `false`. `Player.tokens` und `tokenLog` sind immer vorhanden, aber nur mit eingeschalteter Regel von Bedeutung.
 
-Feste Werte (`TOKENS` in `src/core/game.js`): 2 Marken zum Start, höchstens 5 pro Spieler, 15 Sekunden zum Anzweifeln.
+Feste Werte (`TOKENS` in `src/core/game.js`): 2 Marken zum Start, höchstens 5 pro Spieler, 20 Sekunden zum Anzweifeln.
 
 **Ablauf eines Zugs mit Marken**
 
@@ -205,10 +213,30 @@ Was `skala.js` dafür entgegennimmt (`fest`, `zweifel`, `dieb`, `geklaut`), steh
 | `skipTurn()` | Host überspringt den Zug, z. B. bei getrenntem Spieler (`can.skipTurn`) |
 | `endGame()`, `newGame()` | Host: Spiel beenden / zurück zur Lobby |
 | `kick(playerId)` | Host entfernt einen Spieler |
-| `replay()`, `stopMusic()` | Musik neu starten / anhalten (`can.audioControl`) |
+| `replay()` | Song von vorn abspielen (`can.audioControl`) |
+| `pauseMusic()`, `resumeMusic()` | Musik für alle anhalten / an derselben Stelle weiterspielen (`can.audioControl`, Zustand in `game.musicPaused`) |
+| `stopMusic()` | Musik ganz anhalten, ohne Stelle zu merken (`can.audioControl`; von der Oberfläche nicht mehr benutzt) |
 | `setVolume(0..1)` | eigene Lautstärke |
 | `copyInvite()` | Einladungslink in die Zwischenablage (Promise → boolean) |
 | `dismissError()` | Fehlermeldung schließen |
+
+## Klänge (`src/ui/klang.js`)
+
+Reine Oberflächensache: Die Logik weiß nichts davon. Die Klänge entstehen im Browser mit der Web Audio API, es gibt keine Klangdateien (die Content-Security-Policy bleibt unverändert). Alle Klänge stehen als kurze Tonfolgen in der Tabelle `KLAENGE` am Anfang der Datei, darüber die Gesamtlautstärke `LAUT` und der Höhenfilter `HOEHEN`. Dort wird nachgestimmt.
+
+| Klang | Wann | Wo ausgelöst |
+|---|---|---|
+| `knopf` | jeder Knopfdruck (außer Knöpfe mit `data-klang="aus"` und alles auf der Skala) | `starteKlang()` |
+| `ruecken` | eine Lücke wird gewählt, die Karte rückt ein (Tonhöhe folgt der Stelle); auch beim probeweisen Stecken einer Marke | `Skala.update()`, `waehle()`, `waehleTipp()` |
+| `fest` | festgelegt (einmal je Karte) | `Skala.update()` bzw. `rolle()` |
+| `dreh`, `ziffer` | die Karte dreht sich um, jede Ziffer der Jahreszahl rastet ein | `Skala.rolle()`, `zeigeJahr()` |
+| `richtig` / `falsch` | die Karte landet in der Zeitleiste / liegt falsch | `Skala.layout()` / `update()` |
+| `tipp` | ein Anzweifler steckt seine Marke | `Skala.legeTipps()` |
+| `klau` | die Karte fliegt zum Anzweifler | `Skala.klau()` |
+| `marke` | ein Spieler bekommt eine Marke | `ui.js` (Zeitleisten) |
+| `sieg` | der Dino feiert am Spielende | `Skala.layout()` |
+
+Die Klänge hängen am Spielstand und an den Animationen, nicht an der eigenen Eingabe: Gäste und Zuschauer hören dasselbe wie der aktive Spieler. Beim Neuladen mitten im Zug erklingt nichts nachträglich. Ein Tab im Hintergrund bleibt still. Browser erlauben Ton erst nach einer Eingabe: Der `AudioContext` entsteht beim ersten Klick oder Tastendruck, bis dahin bleibt alles still. Der Schalter in der Ecke unten rechts (`.klang-schalter`, Symbole `ton` / `tonAus`) schaltet die Klänge aus und ein; die Einstellung liegt in `localStorage` unter `radino.klang`. Die Musik selbst betrifft das nicht.
 
 ## Regeln für die neue Oberfläche
 

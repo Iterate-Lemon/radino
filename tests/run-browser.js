@@ -3,6 +3,7 @@ import './game.test.js';
 import './protocol.test.js';
 import './match.test.js';
 import './tokens.test.js';
+import './audio.test.js';
 
 const out = document.getElementById('out');
 const lines = [];

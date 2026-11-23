@@ -14,7 +14,7 @@ export const LIMITS = { minTarget: 2, maxTarget: 30, maxPlayers: 12, nameLength:
 export const START_OFFSETS = [0, 30, 60];
 // Optionale Regel "Marken": Startzahl, Obergrenze je Spieler, Dauer der
 // Anzweifel-Phase und Länge des Marken-Protokolls. Bewusst nicht einstellbar.
-export const TOKENS = { start: 2, max: 5, challengeMs: 15000, logLength: 500 };
+export const TOKENS = { start: 2, max: 5, challengeMs: 20000, logLength: 500 };
 
 const DEFAULT_SETTINGS = { mode: 'host', target: 10, editions: [], startAt: 0, tokens: false };
 

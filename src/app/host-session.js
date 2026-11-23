@@ -203,7 +203,7 @@ export class HostSession extends Emitter {
         break;
       }
       case 'ctl':
-        if (this.#mayControlAudio(pid)) msg.c === 'replay' ? this.#replay() : this.director.stop();
+        if (this.#mayControlAudio(pid)) this.#control(msg.c);
         break;
       case 'audio-ack':
         this.director.onAck(pid, msg);
@@ -281,6 +281,7 @@ export class HostSession extends Emitter {
       const st = this.audioStates.get(p.id) || { s: 'off', msg: '' };
       v.audio[p.id] = { s: st.s, msg: st.msg, play: this.director?.statusFor(p.id) || null };
     }
+    v.musicPaused = !!this.director?.paused;
     return v;
   }
 
@@ -338,12 +339,21 @@ export class HostSession extends Emitter {
 
   ctl(c) {
     this.music?.activate?.();
+    this.#control(c);
+  }
+
+  #control(c) {
     if (c === 'replay') this.#replay();
-    else this.director.stop();
+    else if (c === 'pause') this.director.pause();
+    else if (c === 'resume') {
+      // Gab es nichts zum Weiterspielen (z. B. Song war zu Ende), beginnt er von vorn.
+      if (this.director.paused && !this.director.resume()) this.#replay();
+    } else this.director.stop();
   }
 
   /** Aktuellen Song neu starten – auch nach einem Neuladen des Hosts. */
   #replay() {
+    this.director.release(); // "Nochmal" hebt eine Pause auf
     const card = this.game.card;
     let fallback = null;
     if (card && (this.game.phase === 'turn' || this.game.phase === 'challenge' || this.game.phase === 'reveal')) {

@@ -2,6 +2,7 @@
 // (siehe docs/UI-SCHNITTSTELLE.md). Aufbau:
 //   pixel.js  Pixelschrift, Dino, Symbole
 //   skala.js  die Zeitleiste als Senderskala mit Songkarten
+//   klang.js  leise Klänge zu Knöpfen und Animationen
 //   ui.js     Bildschirme: Start, Verbinden, Lobby, Spiel (mit Spielende)
 // Jeder Bildschirm wird einmal gebaut und danach nur aktualisiert, damit
 // Animationen, Eingaben und Fokus erhalten bleiben.
@@ -10,6 +11,7 @@
 import { h, erneuere } from './dom.js';
 import { pixeltext, pixelzeile, kannPixel, dino, symbol, marke } from './pixel.js';
 import { Skala, lueckenText } from './skala.js';
+import { spiele, starteKlang, klangAn, schalteKlang } from './klang.js';
 
 const MODE_TEXT = {
   host: ['Nur der Host spielt ab', 'Die anderen hören über einen Discord-Stream mit. Beliebig viele Spieler.'],
@@ -67,6 +69,8 @@ const knopf = (label, onclick, cls = '', attrs = {}) => (cls.includes('haupt') |
   ? h('button', { type: 'button', class: `knopf ${cls}`.trim(), onclick, 'aria-label': label, ...attrs }, pixelLabel(label))
   : h('button', { type: 'button', class: `knopf ${cls}`.trim(), onclick, ...attrs }, label));
 const textknopf = (label, onclick, attrs = {}) => h('button', { type: 'button', class: 'textknopf', onclick, ...attrs }, label);
+// Textknopf mit einem Pixel-Symbol davor
+const symbolknopf = (name, label, onclick, attrs = {}) => h('button', { type: 'button', onclick, ...attrs, class: `textknopf mit-symbol ${attrs.class || ''}`.trim() }, symbol(name), h('span', {}, label));
 const etikett = (text) => h('h2', { class: 'etikett' }, pixeltext(text));
 
 // Regel „Marken“: der Markenstand als fünf Plätze, die belegten sind gefüllt.
@@ -488,7 +492,7 @@ function spielAnsicht(app) {
   const verlaufBlock = h('section', {}, etikett('Verlauf'), verlauf);
   const hostleiste = h('div', {});
   // Regel „Marken“: die Frist zum Anzweifeln als Skalenstriche, die nacheinander erlöschen
-  const FRIST_STRICHE = 15;
+  const FRIST_STRICHE = 20; // ein Strich je Sekunde (TOKENS.challengeMs in src/core/game.js)
   const fristStriche = h('span', { class: 'frist-striche', 'aria-hidden': 'true' }, Array.from({ length: FRIST_STRICHE }, () => h('i')));
   const fristZahl = h('span', { class: 'frist-zahl', 'aria-hidden': 'true' });
   const frist = h('span', { class: 'frist', role: 'timer', hidden: true }, fristStriche, fristZahl);
@@ -674,17 +678,21 @@ function spielAnsicht(app) {
     const hoert = mode === 'everyone' || mode === 'test' || (mode === 'host' && r.isHost);
     const my = r.myAudio;
     const spielt = phase !== 'ended' && hoert && my.state === 'playing';
+    const pausiert = !!g.musicPaused; // gilt für alle: Erst „Weiter“ lässt wieder Musik laufen
     ton.classList.toggle('still', !spielt);
     ton.style.display = phase === 'ended' ? 'none' : '';
-    erneuere(tonStatus, [hoert, my.state, my.reason, mode === 'everyone' && my.drift], () => {
+    erneuere(tonStatus, [hoert, my.state, my.reason, mode === 'everyone' && my.drift, pausiert], () => {
+      if (pausiert) return h('span', { class: 'pausiert', role: 'status' }, symbol('pause'), 'Musik pausiert');
       if (!hoert) return h('span', {}, 'Die Musik kommt vom Host (z. B. über Discord).');
       const text = my.state === 'error' ? FAIL_REASON[my.reason] || 'Musikfehler' : AUDIO_STATE[my.state] || '';
       const versatz = mode === 'everyone' && my.drift !== null && my.drift !== undefined ? ` (Versatz ${my.drift} ms)` : '';
       return [h('span', { class: 'pegel', 'aria-hidden': 'true' }, [0, 1, 2, 3].map(() => h('i'))), h('span', { class: my.state === 'error' ? 'fehlertext' : '' }, text + versatz)];
     });
-    erneuere(tonKnoepfe, !!r.can.audioControl && !verdeckt, () => (r.can.audioControl && !verdeckt ? [
-      textknopf('Nochmal', a.replay, { 'data-fk': 'nochmal' }),
-      textknopf('Stopp', a.stopMusic, { 'data-fk': 'stopp' }),
+    erneuere(tonKnoepfe, [!!r.can.audioControl && !verdeckt, pausiert], () => (r.can.audioControl && !verdeckt ? [
+      textknopf('Nochmal', a.replay, { 'data-fk': 'nochmal', title: 'Song von vorn abspielen' }),
+      pausiert
+        ? symbolknopf('spiel', 'Weiter', a.resumeMusic, { 'data-fk': 'pause', class: 'hell', title: 'Musik weiterspielen' })
+        : symbolknopf('pause', 'Pause', a.pauseMusic, { 'data-fk': 'pause', title: 'Musik anhalten, bis jemand weiterspielt' }),
     ] : null));
     lautstaerke.style.display = hoert ? '' : 'none';
     if (document.activeElement !== regler) regler.value = state.volume;
@@ -702,7 +710,7 @@ function spielAnsicht(app) {
         // Regel „Marken“: Die Lücke wird auf der Skala gewählt, hier wird nur bestätigt oder gepasst.
         const ch = r.challenge;
         if (r.can.challenge) {
-          teile.push(knopf('Anzweifeln', zweifleAn, 'haupt', { disabled: tipp === null, 'data-fk': 'haupt' }));
+          teile.push(knopf('Anzweifeln', zweifleAn, 'haupt', { disabled: tipp === null, 'data-fk': 'haupt', 'data-klang': 'aus' }));
           teile.push(h('span', { class: 'wo' }, tipp === null ? 'Klick auf eine freie Lücke. Das kostet eine Marke.' : [h('b', {}, lueckenText(tl, tipp)), ' · kostet eine Marke']));
           teile.push(knopf('Passen', a.passChallenge, '', { 'data-fk': 'passen' }));
         } else {
@@ -741,14 +749,14 @@ function spielAnsicht(app) {
             rechts.push(h('span', { class: 'wo' }, 'Titel und Interpret gewusst?'));
             const name = aktiv?.name ?? '';
             const label = name && name.length <= 12 && kannPixel(name) ? `Marke für ${name}` : 'Marke geben';
-            rechts.push(h('button', { type: 'button', class: 'knopf neben', onclick: a.giveToken, 'aria-label': `Marke für ${name || 'den aktiven Spieler'}`, 'data-fk': 'marke-geben' }, marke(), pixelLabel(label)));
+            rechts.push(h('button', { type: 'button', class: 'knopf neben', onclick: a.giveToken, 'aria-label': `Marke für ${name || 'den aktiven Spieler'}`, 'data-fk': 'marke-geben', 'data-klang': 'aus' }, marke(), pixelLabel(label)));
           }
           if (rechts.length) teile.push(h('div', { class: 'rechts' }, rechts));
         }
         return teile;
       }
       if (darfWaehlen) {
-        teile.push(knopf('Festlegen', a.lockIn, 'haupt', { disabled: slot === null, 'data-fk': 'haupt' }));
+        teile.push(knopf('Festlegen', a.lockIn, 'haupt', { disabled: slot === null, 'data-fk': 'haupt', 'data-klang': 'aus' }));
         teile.push(h('span', { class: 'wo' }, slot === null ? 'Wähle eine Lücke: klicken, die Karte ziehen oder ← →' : h('b', {}, lueckenText(tl, slot))));
       } else {
         teile.push(h('span', { class: 'wo' }, slot === null ? `${aktiv?.name ?? '?'} überlegt …` : [`${aktiv?.name ?? '?'} zeigt auf: `, h('b', {}, lueckenText(tl, slot))]));
@@ -765,8 +773,9 @@ function spielAnsicht(app) {
     const markiert = phase === 'ended' ? null : aktiv?.id;
     const unterwegs = verdeckt || (klaut !== null && klaut === c?.round); // Karte dreht sich noch oder fliegt zum Dieb
     const zeigbar = unterwegs && (c.correct || c.wonBy) ? c.song.id : null; // noch nicht verraten
-    erneuere(reihenPlatz, [liste.map((p) => [p.id, p.name, p.connected, p.host, p.timeline.map((s) => s.y), musikMarke(g, p), mitMarken && p.tokens]), markiert, ziel, r.me, r.can.kick, zeigbar, gelandet], () =>
-      h('ul', { class: 'reihen' }, liste.map((p) => {
+    erneuere(reihenPlatz, [liste.map((p) => [p.id, p.name, p.connected, p.host, p.timeline.map((s) => s.y), musikMarke(g, p), mitMarken && p.tokens]), markiert, ziel, r.me, r.can.kick, zeigbar, gelandet], () => {
+      if (mitMarken && liste.some((p) => p.tokens > (markenVorher.get(p.id) ?? p.tokens))) spiele('marke');
+      return h('ul', { class: 'reihen' }, liste.map((p) => {
         const karten = zeigbar ? p.timeline.filter((s) => s.id !== zeigbar) : p.timeline;
         const m = p.connected ? musikMarke(g, p) : null;
         const striche = Math.max(karten.length, ziel <= 12 ? ziel : 0);
@@ -784,7 +793,8 @@ function spielAnsicht(app) {
           r.can.kick && !p.host ? textknopf('entfernen', async () => {
             if (await frage(`${p.name} aus dem Raum entfernen?`, 'Entfernen')) a.kick(p.id);
           }, { 'data-fk': `kick-${p.id}` }) : null);
-      })));
+      }));
+    });
 
     // Verlauf
     // Während die Karte sich umdreht, bleiben ihre Einträge (gelegt, ggf. geklaut) verborgen.
@@ -865,7 +875,19 @@ export function mountUI(root, app) {
   let geplant = false;
   const hinweis = h('div', { class: 'hinweis-fenster', role: 'status' });
   const platz = h('div', {});
-  root.replaceChildren(platz, hinweis);
+  // Klänge der Oberfläche: ein kleiner Schalter in der Ecke, auf allen Bildschirmen
+  starteKlang();
+  const klangKnopf = h('button', { type: 'button', class: 'klang-schalter', 'data-klang': 'aus', onclick: () => { schalteKlang(!klangAn()); zeigeKlang(); } });
+  const zeigeKlang = () => {
+    const an = klangAn();
+    klangKnopf.replaceChildren(symbol(an ? 'ton' : 'tonAus'));
+    klangKnopf.classList.toggle('aus', !an);
+    klangKnopf.setAttribute('aria-pressed', String(an));
+    klangKnopf.setAttribute('aria-label', 'Klänge');
+    klangKnopf.title = an ? 'Klänge sind an (Knöpfe und Karten)' : 'Klänge sind aus';
+  };
+  zeigeKlang();
+  root.replaceChildren(platz, hinweis, klangKnopf);
 
   const zeichne = () => {
     geplant = false;

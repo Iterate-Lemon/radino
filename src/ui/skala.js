@@ -20,6 +20,7 @@
 
 import { h, warte } from './dom.js';
 import { pixeltext, kannPixel, dino, symbol, marke } from './pixel.js';
+import { spiele, stufe } from './klang.js';
 
 // Jede Karte bekommt eine feste Farbe. Sie hängt am Jahr: Dieselbe Karte sieht bei
 // allen gleich aus, und benachbarte Jahre bekommen deutlich verschiedene Farben
@@ -65,6 +66,11 @@ export class Skala {
     this.ersteLage = true;
     this.gerollt = null;
     this.wunsch = null; // eben selbst gewählte Lücke, bis der Spielstand sie bestätigt
+    // Klänge: was schon zu hören war, damit nichts doppelt oder beim Neuladen erklingt
+    this.klangSlot = null;
+    this.festRunde = null;
+    this.tippRunde = null;
+    this.tippGehoert = new Set();
 
     this.linie = h('div', { class: 'skala-linie' });
     this.lage = h('div', { class: 'skala-karten' });
@@ -124,6 +130,10 @@ export class Skala {
       if (!gilt || v.slot === this.wunsch.slot) this.wunsch = null;
       else v.slot = this.wunsch.slot;
     }
+    const gleicheRunde = vorher.runde === v.runde; // sonst: neue Karte oder erstes Zeichnen
+    const slotJetzt = waehlbar ? v.slot : null;
+    if (gleicheRunde && slotJetzt !== null && slotJetzt !== this.klangSlot && !v.fest) this.rueckKlang(slotJetzt);
+    this.klangSlot = slotJetzt;
 
     // Wo die Karte im Spiel gerade ist: Von dort fällt sie in die Zeitleiste.
     const landet = v.mode === 'offen' && v.reveal?.correct && warWaehlbar;
@@ -159,9 +169,14 @@ export class Skala {
       this.zeigeJahr(v.reveal.song.y, false);
     }
     const z = this.zeiger.classList;
+    if (v.fest && this.festRunde !== v.runde) {
+      if (gleicheRunde) spiele('fest');
+      this.festRunde = v.runde; // je Karte erklingt der Riegel nur einmal
+    }
     z.toggle('fest', !!v.fest);
     if (waehlbar && (!warWaehlbar || v.runde !== vorher.runde)) this.verdecke();
     if (!falsch) this.kachel.classList.remove('geklaut');
+    if (falsch && !this.kachel.classList.contains('falsch') && gleicheRunde) spiele('falsch');
     this.kachel.classList.toggle('falsch', falsch);
     z.toggle('falsch', falsch);
     z.toggle('greifbar', v.mode === 'waehlen');
@@ -191,8 +206,16 @@ export class Skala {
     if (this.view.slot !== i) {
       this.view.slot = i;
       this.layout();
+      this.rueckKlang(i);
+      this.klangSlot = i;
     }
     this.onSelect(i);
+  }
+
+  // Klang beim Einrücken: Wie beim Drehen an einer Senderskala steigt der Ton nach rechts.
+  rueckKlang(i) {
+    const mitte = Math.floor(this.view.stations.length / 2);
+    spiele('ruecken', 0, stufe(Math.max(-5, Math.min(5, i - mitte))));
   }
 
   /** Die Karte dreht sich um, dann rasten die Ziffern auf das Jahr ein. */
@@ -200,6 +223,11 @@ export class Skala {
     this.fuelleVorn(song);
     this.gerollt = song.id;
     this.zeiger.classList.remove('greifbar');
+    // Ohne Anzweifel-Phase gab es noch keinen Riegel-Klang: Dann kommt er direkt vor dem Umdrehen.
+    const ohneRiegel = this.festRunde !== this.view.runde;
+    this.festRunde = this.view.runde;
+    if (ohneRiegel) spiele('fest');
+    spiele('dreh', ohneRiegel ? 0.08 : 0);
     this.kachel.classList.add('dreht');
     await warte(150);
     this.kachel.classList.remove('rueck');
@@ -219,6 +247,7 @@ export class Skala {
     const text = String(Math.max(0, Math.trunc(Number(jahr)) || 0)).padStart(4, '0').slice(-4);
     this.ziffern.forEach((r, i) => {
       const schritte = Number(text[i]) + 1;
+      if (animiert) spiele('ziffer', i * 0.12 + 0.3 + schritte * 0.055); // genau wenn die Ziffer steht
       r.style.transition = animiert ? `transform ${0.3 + schritte * 0.055}s steps(${schritte}) ${i * 120}ms` : 'none';
       r.style.transform = `translateY(calc(var(--kp) * ${-9 * schritte}))`;
     });
@@ -269,6 +298,7 @@ export class Skala {
     const H = wi;
     const p = wi >= 151 ? 5 : wi >= 124 ? 4 : 3; // die Jahreszahl muss in den Innenrahmen passen
     const feiert = v.mode === 'ruhe' && !!v.dino;
+    if (feiert && !sofort && !this.maskottchen.classList.contains('da')) spiele('sieg', 0.2);
     const kopf = v.mode === 'ruhe' ? (feiert ? 78 : 16) : H + 36;
     this.maskottchen.classList.toggle('da', feiert);
     this.maskottchen.style.transform = `translateX(${W / 2 - 36}px)`;
@@ -315,6 +345,7 @@ export class Skala {
         el.style.transition = '';
         el.classList.add('landet');
         el.style.transform = ziel;
+        spiele('richtig', 0.3);
         setTimeout(() => { el.classList.remove('landet'); this.funken(xs[i] + 3, oben); }, 330);
         return;
       }
@@ -378,6 +409,9 @@ export class Skala {
   legeTipps(schritt = this.geom.w) {
     const { mitten, W } = this.geom;
     const zw = this.view.zweifel;
+    // Klang nur für Marken, die jetzt neu gesteckt werden (nicht beim ersten Zeichnen einer Runde).
+    const leise = this.tippRunde !== this.view.runde;
+    if (leise) { this.tippRunde = this.view.runde; this.tippGehoert.clear(); }
     const soll = new Map();
     if (zw) {
       const belegt = new Set();
@@ -385,6 +419,10 @@ export class Skala {
         if (t.slot >= mitten.length) continue;
         belegt.add(t.slot);
         soll.set(`p:${t.key}`, { ...t, art: 'fest' });
+        if (!this.tippGehoert.has(t.key)) {
+          this.tippGehoert.add(t.key);
+          if (!leise) spiele('tipp');
+        }
       }
       for (const i of zw.frei) {
         if (belegt.has(i) || i >= mitten.length) continue;
@@ -429,6 +467,7 @@ export class Skala {
   /** Meine Marke probehalber in eine freie Lücke stecken. Fest wird es erst mit onTippFest. */
   waehleTipp(i) {
     if (!this.view.zweifel?.frei?.includes(i)) return;
+    if (this.tippWahl?.slot !== i) this.rueckKlang(i);
     this.tippWahl = { runde: this.view.runde, slot: i };
     this.legeTipps();
     this.onTipp(i);
@@ -462,6 +501,7 @@ export class Skala {
     document.body.append(f);
     this.fliegt = true;
     this.zeiger.classList.add('weg');
+    spiele('klau');
 
     const z = ziel?.()?.getBoundingClientRect();
     const dx = z ? z.left + z.width / 2 - (von.left + von.width / 2) : 0;

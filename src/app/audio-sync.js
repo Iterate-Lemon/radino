@@ -7,6 +7,11 @@
 //   4. Client rechnet "at" mit dem gemessenen Uhrzeit-Versatz in lokale Zeit um,
 //      startet genau dann und korrigiert danach eine Abweichung per seek().
 // Im Modus "Nur der Host spielt ab" ist der Host der einzige Teilnehmer.
+//
+// Pause: Der Director hält alle an und merkt sich die Stelle. "Weiter" ist ein
+// normaler Durchlauf (prepare/start) ab dieser Stelle. So bleiben alle synchron,
+// und es klappt auch, wenn ein Player in der Pause seinen Zustand verloren hat.
+// Solange pausiert ist, wird ein neuer Song nur vorgemerkt und nicht gespielt.
 
 import { Emitter, now } from '../lib/util.js';
 
@@ -115,7 +120,7 @@ export class AudioClient extends Emitter {
     }
     this.prepared = { seq: cmd.seq, pos: cmd.pos };
     this.#set('ready');
-    this.sendAck({ seq: cmd.seq, ok: true });
+    this.sendAck({ seq: cmd.seq, ok: true, duration: Number.isFinite(r.duration) ? Math.round(r.duration) : undefined });
     if (this.pendingStart?.seq === cmd.seq) {
       const s = this.pendingStart;
       this.pendingStart = null;
@@ -167,14 +172,26 @@ export class AudioDirector extends Emitter {
     this.last = null;
     this.timer = null;
     this.everyone = new Set(); // alle, die je einen Befehl bekommen haben
+    this.paused = false;
+    this.held = null; // { trackId, pos, round }: was nach der Pause gespielt wird
   }
 
   play({ trackId, pos, round }) {
+    this.last = { trackId, pos, round };
+    if (this.paused) {
+      // Pause bleibt Pause: Der neue Song wartet, bis jemand weiterspielt.
+      this.held = { trackId, pos, round };
+      this.emit('change');
+      return;
+    }
+    this.#launch({ trackId, pos, round });
+  }
+
+  #launch({ trackId, pos, round }) {
     clearTimeout(this.timer);
     const seq = ++this.seq;
     const parts = this.participants();
     this.current = { seq, trackId, pos, round, parts, acks: new Map(), started: false };
-    this.last = { trackId, pos, round };
     // Wer nicht mehr teilnimmt (z. B. Moduswechsel), soll still sein.
     for (const pid of this.everyone) if (!parts.includes(pid)) this.send(pid, { t: 'audio', c: 'stop' });
     for (const pid of parts) {
@@ -192,17 +209,56 @@ export class AudioDirector extends Emitter {
   }
 
   stop() {
+    this.paused = false;
+    this.held = null;
+    this.#silence();
+    this.emit('change');
+  }
+
+  #silence() {
     clearTimeout(this.timer);
     this.seq++;
     this.current = null;
     for (const pid of this.everyone) this.send(pid, { t: 'audio', c: 'stop' });
+  }
+
+  /** Alle anhalten und die Stelle merken. Neue Songs warten, bis resume() kommt. */
+  pause() {
+    if (this.paused) return;
+    const c = this.current;
+    this.held = null;
+    if (c) {
+      const pos = Math.round(c.pos + (c.at ? Math.max(0, now() - c.at) : 0));
+      // Ist der Song schon zu Ende, gibt es keine Stelle zum Weiterspielen.
+      if (!(c.duration && pos > c.duration - 2000)) this.held = { trackId: c.trackId, pos, round: c.round };
+    }
+    this.paused = true;
+    this.#silence();
     this.emit('change');
   }
 
-  onAck(pid, { seq, ok, reason }) {
+  /** Pause aufheben. Liefert true, wenn es etwas zum Weiterspielen gab. */
+  resume() {
+    if (!this.paused) return false;
+    const what = this.held;
+    this.paused = false;
+    this.held = null;
+    if (what) this.#launch(what);
+    else this.emit('change');
+    return !!what;
+  }
+
+  /** Pause aufheben, ohne etwas zu spielen (z. B. vor "Nochmal"). */
+  release() {
+    this.paused = false;
+    this.held = null;
+  }
+
+  onAck(pid, { seq, ok, reason, duration }) {
     const c = this.current;
     if (!c || seq !== c.seq || !c.parts.includes(pid)) return;
     c.acks.set(pid, { ok, reason });
+    if (ok && duration > 0) c.duration = duration;
     this.emit('change');
     this.#maybeStart(false);
   }
@@ -227,6 +283,7 @@ export class AudioDirector extends Emitter {
       return;
     }
     const at = now() + START_DELAY;
+    c.at = at;
     // Auch Nachzügler bekommen den Start; sie steigen mit Ausgleich später ein.
     for (const pid of c.parts) this.send(pid, { t: 'audio', c: 'start', seq: c.seq, at });
     this.emit('started', { round: c.round, okCount: okParts.length });

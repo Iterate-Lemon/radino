@@ -323,6 +323,12 @@ export function createApp({ db, testMode = false }) {
     stopMusic() {
       room?.ctl('stop');
     },
+    pauseMusic() {
+      room?.ctl('pause');
+    },
+    resumeMusic() {
+      room?.ctl('resume');
+    },
     setVolume(v) {
       const vol = Math.max(0, Math.min(1, Number(v) || 0));
       ui = { ...ui, volume: vol };

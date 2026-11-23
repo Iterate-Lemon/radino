@@ -527,8 +527,31 @@ dialog.frage .linkfeld { display: block; width: 100%; margin-top: 16px; }
 .marke.fehler { color: var(--falsch); }
 .reihe .textknopf { font-size: 13px; opacity: 0; }
 .reihe:hover .textknopf, .reihe .textknopf:focus-visible { opacity: 1; }
-.ton-knoepfe { display: inline-flex; gap: 18px; }
+.ton-knoepfe { display: inline-flex; align-items: center; gap: 18px; }
 .ton-knoepfe:empty { display: none; }
+
+/* Textknopf mit Pixel-Symbol davor (Pause / Weiter) */
+.textknopf.mit-symbol { display: inline-flex; align-items: center; gap: 8px; text-decoration: none; --p: 2px; }
+.textknopf.mit-symbol span { text-decoration: underline; text-decoration-color: var(--linie-stark); text-decoration-thickness: 2px; text-underline-offset: 5px; }
+.textknopf.mit-symbol:hover span { text-decoration-color: var(--schrift); }
+.textknopf.mit-symbol.hell { color: var(--leucht); }
+.textknopf.mit-symbol.hell span { text-decoration-color: var(--leucht-dunkel); }
+.textknopf.mit-symbol.hell:hover { color: var(--leucht-hell); }
+.textknopf.mit-symbol.hell:hover span { text-decoration-color: var(--leucht-hell); }
+/* Für alle sichtbar: Die Musik ist angehalten. */
+.pausiert { display: inline-flex; align-items: center; gap: 10px; color: var(--schrift); white-space: nowrap; --p: 2px; }
+.pausiert .symbol { color: var(--leucht); }
+
+/* Klänge der Oberfläche an/aus: klein in der Ecke */
+.klang-schalter {
+  position: fixed; right: 8px; bottom: 8px; z-index: 35; /* liegt im freien Seitenrand */
+  width: 32px; height: 32px; display: grid; place-items: center;
+  background: none; border: 0; padding: 0; cursor: pointer;
+  color: var(--leise); --p: 2px;
+}
+.klang-schalter:hover { color: var(--schrift); }
+.klang-schalter.aus { color: var(--ganz-leise); }
+.klang-schalter.aus:hover { color: var(--leise); }
 
 
 /* ── Regel „Marken“ ────────────────────────────────────────────────────────── */

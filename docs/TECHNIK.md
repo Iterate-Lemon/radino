@@ -56,6 +56,8 @@ Die Developer Policy von Spotify verbietet ausdrücklich „games, including tri
 
 Im Modus „Nur der Host spielt ab“ läuft derselbe Ablauf mit dem Host als einzigem Teilnehmer.
 
+**Pause:** Der Host hält alle an und merkt sich die Stelle (Startposition plus die seit `at` vergangene Zeit). „Weiter“ ist ein normaler Durchlauf ab dieser Stelle (`prepare(track, stelle)`, dann `start`). So bleiben alle synchron, und es klappt auch, wenn ein Player in der Pause seinen Zustand verloren hat; dafür dauert das Weiterspielen einen Moment, wie bei „Nochmal“. Solange pausiert ist, wird ein neuer Song (nächste Runde, übersprungener Song) nur vorgemerkt. Der Zustand steht für alle in `game.musicPaused`. Er wird nicht gespeichert: Nach einem Neuladen des Hosts ist die Pause vergessen.
+
 **Nicht verfügbare Songs:** Scheitert das Laden bei allen Teilnehmern mit einem songbezogenen Grund (`unavailable`/`timeout`), kommt automatisch eine neue Karte, höchstens 3-mal hintereinander. Die Track-ID landet auf einer lokalen Sperrliste. Bei allgemeinen Fehlern (nicht angemeldet, kein Premium) wird nicht übersprungen, sonst würde der Stapel leerlaufen.
 
 **Schutz vor Spoilern:** Die Oberfläche bekommt Titel und Interpret erst nach dem Festlegen. Läuft auf dem SDK-Gerät ein anderer Track als erwartet (z. B. Spotify-Autoplay nach dem Songende), wird sofort pausiert. Gäste spielen nur Track-IDs ab, die in der eigenen Songliste stehen.
@@ -79,7 +81,7 @@ Im Modus „Nur der Host spielt ab“ läuft derselbe Ablauf mit dem Host als ei
 
 ## Tests
 
-- Logiktests (Regeln, Reducer, Protokoll, Abgleich-Bewertung) laufen ohne Abhängigkeiten im Browser unter `tests/index.html` oder auf dem Mac mit:
+- Logiktests (Regeln, Reducer, Protokoll, Abgleich-Bewertung, Pause der Musik) laufen ohne Abhängigkeiten im Browser unter `tests/index.html` oder auf dem Mac mit:
   `/System/Library/Frameworks/JavaScriptCore.framework/Versions/Current/Helpers/jsc -m tests/run-jsc.js`
 - Mehrspieler ohne Netzwerk: `?test&fakenet` (siehe `UI-SCHNITTSTELLE.md`).
 - Spotify und die echten Verbindungsdienste: `tools/test.html` (Funktionstest). Echte Mehrspieler-Tests gehen auch in zwei Tabs mit `?test` (ohne `fakenet`).
