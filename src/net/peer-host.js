@@ -3,6 +3,7 @@
 
 import { Emitter, now } from '../lib/util.js';
 import { parseGuestMessage, hostPeerId } from './protocol.js';
+import { watchIce } from './peer-guest.js';
 
 const HELLO_TIMEOUT = 8000;
 const DEAD_AFTER = 10000;
@@ -109,6 +110,7 @@ export class PeerHost extends Emitter {
       conn.close();
       return;
     }
+    watchIce(conn, 'Host');
     const client = { conn, pid: null, lastSeen: now(), rate: { start: now(), count: 0 } };
     this.clients.add(client);
     client.helloTimer = setTimeout(() => {

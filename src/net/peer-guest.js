@@ -8,6 +8,22 @@ import { parseHostMessage, hostPeerId } from './protocol.js';
 const HEARTBEAT = 2000;
 const DEAD_AFTER = 9000;
 
+/** Beobachtet den Verbindungsaufbau (ICE) einer PeerJS-Verbindung für die Fehlersuche. */
+export function watchIce(conn, label) {
+  const diag = { ice: 'new', local: new Set() };
+  const pc = conn.peerConnection;
+  if (!pc) return diag;
+  pc.addEventListener('icecandidate', (e) => {
+    const m = e.candidate && /typ (\w+)/.exec(e.candidate.candidate);
+    if (m) diag.local.add(m[1]);
+  });
+  pc.addEventListener('iceconnectionstatechange', () => {
+    diag.ice = pc.iceConnectionState;
+    console.info(`RaDino ${label}: Verbindung ${diag.ice} (eigene Adressen: ${[...diag.local].join(', ') || 'keine'})`);
+  });
+  return diag;
+}
+
 export class PeerGuest extends Emitter {
   constructor({ roomId, peerOptions, makeHello }) {
     super();
@@ -101,6 +117,7 @@ export class PeerGuest extends Emitter {
     this.welcomed = false;
     const conn = this.peer.connect(hostPeerId(this.roomId), { reliable: true, serialization: 'raw' });
     this.conn = conn;
+    const diag = watchIce(conn, 'Gast');
     const openTimer = setTimeout(() => {
       if (this.conn === conn && !conn.open) {
         try {
@@ -108,7 +125,14 @@ export class PeerGuest extends Emitter {
         } catch {
           /* egal */
         }
-        this.#setStatus('host-missing', 'Keine Verbindung zum Host. Neuer Versuch läuft …');
+        const cands = [...diag.local].join(', ') || 'keine';
+        const msg =
+          diag.ice === 'new'
+            ? 'Der Host antwortet nicht. Neuer Versuch läuft …'
+            : `Host gefunden, aber keine Direktverbindung möglich (Status: ${diag.ice}, eigene Adressen: ${cands}). ` +
+              'Meist blockiert ein Browser-Schutz (z. B. Brave Shields) oder das Netzwerk die Verbindung – siehe Anleitung „Host nicht erreichbar“. Neuer Versuch läuft …';
+        console.warn('RaDino: Direktverbindung gescheitert', { ice: diag.ice, candidates: cands });
+        this.#setStatus('host-missing', msg);
         this.#scheduleRetry();
       }
     }, 15000);

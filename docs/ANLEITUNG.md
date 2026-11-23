@@ -140,6 +140,7 @@ Spotify erlaubt das Abspielen im Browser nur mit Premium. Im Modus „Nur der Ho
 Der Browser blockiert Popups. Erlaube Popups für die Seite, im Symbol rechts in der Adressleiste. Ohne Popup leitet die Seite stattdessen kurz zu Spotify weiter und kommt danach zurück.
 
 **„Host nicht erreichbar“ / Mitspieler kommt nicht rein**
+- **Brave:** Die Shields (Löwen-Symbol in der Adressleiste) schränken die Direktverbindung ein. Für `iterate-lemon.github.io` die Shields ausschalten, und zwar bei Host und Gästen. Danach die Seite neu laden.
 - Ist der Tab des Hosts noch offen?
 - Stimmt der Link? Er muss vollständig sein, mit allem nach dem `#`.
 - Öffnet der Betroffene `tools/test.html` und startet den Verbindungstest. Sehr strenge Netze (Firma, Uni, manche Mobilfunknetze) blockieren direkte Verbindungen. Dann hilft ein „TURN-Server“: Bei einem TURN-Anbieter mit kostenlosem Kontingent anmelden und die Zugangsdaten in `config.js` bei `iceServers` eintragen. Ein Beispiel steht in der Datei.
