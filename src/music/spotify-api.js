@@ -92,5 +92,9 @@ export const transferTo = (deviceId) =>
 export const setRepeatOff = (deviceId) =>
   spotifyFetch('/me/player/repeat', { method: 'PUT', query: { state: 'off', device_id: deviceId }, retries: 0 }).catch(() => {});
 
+/** Lied in die Bibliothek („Lieblingssongs“) des angemeldeten Kontos legen. Braucht user-library-modify. */
+export const saveTrack = (trackId) =>
+  spotifyFetch('/me/library', { method: 'PUT', query: { uris: `spotify:track:${trackId}` }, retries: 1, maxWait: 5 });
+
 export const search = (q, { market, limit = 10, type = 'track' } = {}) =>
   spotifyFetch('/search', { query: { q, type, limit, market } });

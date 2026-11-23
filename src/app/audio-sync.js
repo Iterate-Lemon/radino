@@ -30,6 +30,7 @@ export class AudioClient extends Emitter {
     this.isAllowedTrack = isAllowedTrack;
     this.latest = 0; // höchste bekannte seq
     this.prepared = null; // { seq, pos }
+    this.track = null; // zuletzt angeforderter Song (für „in Spotify speichern“)
     this.pendingStart = null;
     this.timers = [];
     this.queue = Promise.resolve();
@@ -101,6 +102,7 @@ export class AudioClient extends Emitter {
       this.#set('error', 'not-allowed');
       return;
     }
+    this.track = cmd.track;
     this.#set('preparing');
     let limit;
     const r = await Promise.race([

@@ -128,6 +128,8 @@ ol, ul { list-style: none; }
 /* ── Seitenrahmen ──────────────────────────────────────────────────────────── */
 
 .seite { max-width: 1320px; margin: 0 auto; padding: 0 48px 96px; }
+/* Im Spiel wächst die Seite mit der längsten Zeitleiste (ui.js setzt die Breite). */
+.seite.spiel { transition: max-width 0.5s var(--weich); }
 .boot { padding: 48px; color: var(--leise); }
 [hidden] { display: none !important; }
 .kopf {
@@ -328,7 +330,7 @@ input[type='range']::-webkit-slider-thumb { -webkit-appearance: none; width: 8px
   background: var(--grund);
   box-shadow: 0 0 0 2px var(--kante);
 }
-.station { transition: transform 0.34s var(--weich), opacity 0.4s, top 0.5s var(--weich); }
+.station { transform-origin: 0 0; transition: transform 0.34s var(--weich), opacity 0.4s, top 0.5s var(--weich); }
 .station.kommt { opacity: 0; }
 .station.landet { transition: transform 0.36s cubic-bezier(0.35, 1.5, 0.6, 1); z-index: 2; }
 .station::after { content: ''; position: absolute; left: 50%; top: -17px; width: 2px; height: 26px; margin-left: -1px; background: var(--schrift); }
@@ -365,6 +367,22 @@ input[type='range']::-webkit-slider-thumb { -webkit-appearance: none; width: 8px
 .geisterkarte { outline-offset: 1px; }
 .geisterkarte.da { display: flex; animation: aufblinken 0.44s steps(1) 0.3s 3 backwards; }
 @keyframes aufblinken { 0% { opacity: 0; } 50% { opacity: 1; } }
+
+/* Viele Karten: Die Karten der Zeitleiste werden schmal und zeigen nur noch das Jahr
+   (Form 'schmal'), bei sehr vielen steht es in zwei Zeilen (Form 'eng'). skala.js setzt
+   die Form. Die Karte im Spiel (.kachel) behält immer ihre volle Größe. */
+.skala .geteilt { display: none; }
+.skala:not([data-form='voll']) .station .k-text,
+.skala:not([data-form='voll']) .geisterkarte > span:not(.g-jahr) { display: none; }
+.skala:not([data-form='voll']) .station .k-flaeche { padding: 13px 0 4px; box-shadow: inset 2px 2px 0 var(--hell), inset -2px -2px 0 var(--dunkel); }
+.skala:not([data-form='voll']) .station .k-flaeche::before { display: none; }
+.skala:not([data-form='voll']) .station .k-loch { top: 4px; width: 6px; height: 6px; margin-left: -3px; }
+.skala:not([data-form='voll']) .station .k-schatten { transform: translateY(7px); }
+.skala:not([data-form='voll']) .station .k-kante { transform: translateY(4px); }
+.skala:not([data-form='voll']) .station .k-ring { inset: -3px -3px -7px; }
+.skala:not([data-form='voll']) .geisterkarte { padding: 0; outline-width: 2px; outline-offset: 0; }
+.skala[data-form='eng'] .ganz { display: none; }
+.skala[data-form='eng'] .geteilt { display: grid; justify-items: center; gap: calc(var(--kp) * 2); }
 
 .skala-treffer button { position: absolute; top: 0; height: 100%; background: none; border: 0; padding: 0; cursor: pointer; outline: none; }
 .geist {
@@ -538,6 +556,10 @@ dialog.frage .linkfeld { display: block; width: 100%; margin-top: 16px; }
 .textknopf.mit-symbol.hell span { text-decoration-color: var(--leucht-dunkel); }
 .textknopf.mit-symbol.hell:hover { color: var(--leucht-hell); }
 .textknopf.mit-symbol.hell:hover span { text-decoration-color: var(--leucht-hell); }
+/* Lied im eigenen Spotify-Konto gespeichert */
+.gemerkt { display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; --p: 2px; }
+.gemerkt.da { color: var(--schrift); }
+.gemerkt.da .symbol { color: var(--gut); }
 /* Für alle sichtbar: Die Musik ist angehalten. */
 .pausiert { display: inline-flex; align-items: center; gap: 10px; color: var(--schrift); white-space: nowrap; --p: 2px; }
 .pausiert .symbol { color: var(--leucht); }

@@ -8,9 +8,10 @@
 import { CONFIG } from '../../config.js';
 import { Emitter, local, session } from '../lib/util.js';
 import { cleanName, normalizeSettings, TOKENS } from '../core/game.js';
-import { parseInvite } from '../net/protocol.js';
+import { parseInvite, TRACK_RE } from '../net/protocol.js';
 import { spotifyAuth } from '../music/spotify-auth.js';
 import { SpotifyMusic } from '../music/spotify-music.js';
+import { saveTrack, SpotifyApiError } from '../music/spotify-api.js';
 import { MockMusic } from '../music/mock-music.js';
 import { HostSession, loadSavedHost, discardSavedHost } from './host-session.js';
 import { GuestSession } from './guest-session.js';
@@ -18,6 +19,7 @@ import { GuestSession } from './guest-session.js';
 const NAME_KEY = 'radino.name';
 const VOLUME_KEY = 'radino.volume';
 const HOSTING_KEY = 'radino.hosting';
+const SAVE_SCOPE = 'user-library-modify';
 
 const REJECT_TEXT = {
   'bad-key': 'Der Einladungslink ist ungültig. Bitte den Host um einen neuen Link.',
@@ -48,15 +50,57 @@ export function createApp({ db, testMode = false }) {
     volume,
   };
   let cached = null;
+  // „Lied in Spotify speichern“: was schon gespeichert ist und was gerade läuft
+  const savedTracks = new Set();
+  let savingTrack = null;
+  let saveAfterLogin = null; // Song, der nach der zusätzlichen Erlaubnis gespeichert wird
 
   const changed = () => {
     cached = null;
     events.emit('change');
   };
+  let noticeTimer = null;
+  const setNotice = (notice, ms = 5000) => {
+    ui = { ...ui, notice };
+    clearTimeout(noticeTimer);
+    noticeTimer = setTimeout(() => {
+      ui = { ...ui, notice: null };
+      changed();
+    }, ms);
+    changed();
+  };
+  /** Der Song, den dieser Spieler gerade über sein eigenes Spotify hört (oder null). */
+  const ownTrack = () => {
+    if (!room || room.music !== spotify) return null;
+    const track = (room.role === 'host' ? room.local : room.audio).track;
+    return typeof track === 'string' && TRACK_RE.test(track) ? track : null;
+  };
+  async function saveNow(track) {
+    if (savedTracks.has(track) || savingTrack === track) return;
+    savingTrack = track;
+    changed();
+    try {
+      await saveTrack(track);
+      savedTracks.add(track);
+    } catch (e) {
+      const scope = e instanceof SpotifyApiError && e.status === 403 && /scope/i.test(e.message);
+      setNotice(scope
+        ? 'Spotify erlaubt das Speichern noch nicht. Bitte einmal bei Spotify ab- und wieder anmelden.'
+        : `Speichern hat nicht geklappt: ${e.message}`);
+    } finally {
+      if (savingTrack === track) savingTrack = null;
+      changed();
+    }
+  }
   spotify.on('status', changed);
   spotifyAuth.on('change', (e) => {
     if (e.type === 'login' && !e.ok && e.error) ui = { ...ui, error: e.error };
     if (room?.music === spotify && spotifyAuth.loggedIn) spotify.connect();
+    if (e.type === 'login') {
+      const track = saveAfterLogin;
+      saveAfterLogin = null;
+      if (track && e.ok && spotifyAuth.hasScope(SAVE_SCOPE)) saveNow(track);
+    }
     changed();
   });
   window.addEventListener('hashchange', () => {
@@ -124,6 +168,7 @@ export function createApp({ db, testMode = false }) {
     };
     const audioClient = isHost ? room.local : room.audio;
     r.myAudio = { state: audioClient.state, reason: audioClient.reason, drift: audioClient.drift };
+    r.songSave = 'idle'; // 'idle' | 'saving' | 'saved': aktuelles Lied im eigenen Spotify-Konto
 
     if (g) {
       const phase = g.phase;
@@ -183,7 +228,14 @@ export function createApp({ db, testMode = false }) {
         reset: isHost && phase !== 'lobby',
         audioControl: playing && (isHost || mine) && mode !== undefined,
         kick: isHost,
+        saveSong: false,
       };
+      // Nur wer selbst über Spotify hört, kann das aktuelle Lied in seinem Konto speichern.
+      const track = playing && spotify.status === 'ready' ? ownTrack() : null;
+      if (track) {
+        r.songSave = savedTracks.has(track) ? 'saved' : savingTrack === track ? 'saving' : 'idle';
+        r.can.saveSong = r.songSave === 'idle';
+      }
     }
     if (conn === 'rejected') base.error = REJECT_TEXT[room.transport.statusMessage] || 'Der Host hat den Beitritt abgelehnt.';
     if (conn === 'kicked') base.error = 'Du wurdest vom Host aus dem Raum entfernt.';
@@ -329,6 +381,18 @@ export function createApp({ db, testMode = false }) {
     resumeMusic() {
       room?.ctl('resume');
     },
+    /** Aktuelles Lied in der eigenen Spotify-Bibliothek speichern (nur wer selbst über Spotify hört). */
+    async saveSong() {
+      const track = ownTrack();
+      if (!track) return;
+      if (!spotifyAuth.hasScope(SAVE_SCOPE)) {
+        // Anmeldungen von früher haben die Erlaubnis noch nicht: einmal nachfragen, dann speichern.
+        saveAfterLogin = track;
+        setNotice('Spotify fragt einmal nach der Erlaubnis zum Speichern.');
+        return actions.spotifyLogin();
+      }
+      return saveNow(track);
+    },
     setVolume(v) {
       const vol = Math.max(0, Math.min(1, Number(v) || 0));
       ui = { ...ui, volume: vol };
@@ -341,12 +405,7 @@ export function createApp({ db, testMode = false }) {
       if (room?.role !== 'host') return false;
       try {
         await navigator.clipboard.writeText(room.inviteUrl);
-        ui = { ...ui, notice: 'Einladungslink kopiert.' };
-        changed();
-        setTimeout(() => {
-          ui = { ...ui, notice: null };
-          changed();
-        }, 3000);
+        setNotice('Einladungslink kopiert.', 3000);
         return true;
       } catch {
         return false;

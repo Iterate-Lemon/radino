@@ -155,6 +155,8 @@ const SYMBOLE = {
   // Musik anhalten und weiterspielen
   pause: ['##..##', '##..##', '##..##', '##..##', '##..##', '##..##', '##..##'],
   spiel: ['##...', '###..', '####.', '#####', '####.', '###..', '##...'],
+  // Lied im eigenen Spotify-Konto speichern
+  herz: ['.##.##.', '#######', '#######', '.#####.', '..###..', '...#...'],
   // Klänge der Oberfläche an und aus: ein Lautsprecher mit Schallwellen bzw. mit Kreuz
   ton: ['...#....', '..##...#', '####.#.#', '####.#.#', '####.#.#', '..##...#', '...#....'],
   tonAus: ['...#....', '..##....', '####.#.#', '####..#.', '####.#.#', '..##....', '...#....'],

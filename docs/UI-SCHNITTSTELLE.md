@@ -70,11 +70,12 @@ Ob eine Schaltfläche aktiv sein soll, steht in `state.room.can.*`. Die Oberflä
     mePlayer: Player | null,
     winners: Player[],
     myAudio: { state: 'idle'|'preparing'|'ready'|'playing'|'stopped'|'error', reason, drift },
+    songSave: 'idle' | 'saving' | 'saved', // aktuelles Lied im eigenen Spotify-Konto (siehe „Lied speichern“)
     startBlocker: string | null,   // warum "Spiel starten" gesperrt ist
     challenge: null | Challenge,   // nur in der Anzweifel-Phase (Regel „Marken“, siehe unten)
     can: {
       editSettings, start, select, lock, next, skipSong, skipTurn,
-      endGame, reset, audioControl, kick,
+      endGame, reset, audioControl, kick, saveSong,
       challenge, pass, endChallenge, giveToken, revokeToken, // Regel „Marken“
     },
   },
@@ -121,6 +122,12 @@ Player = { id, name, host, connected, timeline: [{ id, t, a, y, img }], tokens: 
 `pauseMusic()` hält die Musik für alle an, `resumeMusic()` spielt an derselben Stelle weiter. Drücken darf, wer `can.audioControl` hat (Host und aktiver Spieler). Bei „Jeder hört selbst“ hält jeder Player an und startet synchron wieder. Solange `game.musicPaused` gilt, kommt kein Lied: Beginnt in der Pause die nächste Runde (oder wird ein Song übersprungen), wartet der neue Song, bis jemand weiterspielt. `replay()` („Nochmal“) hebt die Pause auf und beginnt den Song von vorn. War der Song beim Anhalten schon zu Ende, beginnt er mit `resumeMusic()` ebenfalls von vorn. Spielende durch den Host und „Neues Spiel“ heben die Pause auf. Lädt der Host die Seite neu, ist die Pause vergessen (die Musik steht dann ohnehin, bis jemand „Nochmal“ drückt).
 
 In `src/ui/` sitzen „Nochmal“ und der Umschalter „Pause“ / „Weiter“ (Pixel-Symbole `pause` und `spiel`) neben der Lautstärke. Alle Spieler sehen dort den Hinweis „Musik pausiert“.
+
+## Lied speichern
+
+Wer selbst über Spotify hört (bei „Jeder hört selbst“ jeder Spieler, bei „Nur der Host spielt ab“ der Host), kann das aktuelle Lied mit `saveSong()` in der Bibliothek seines Spotify-Kontos speichern. `can.saveSong` ist `true`, solange ein Lied der laufenden Runde da ist und noch nicht gespeichert wurde; `room.songSave` zeigt den Stand (`saving`, `saved`). Welches Lied es ist, erfährt die Oberfläche dabei nicht. Fehlt der Anmeldung die Erlaubnis dafür (Anmeldungen von früher), öffnet `saveSong()` einmal das Spotify-Anmeldefenster und speichert danach. Fehler kommen als `notice`.
+
+In `src/ui/` sitzt dafür „♥ Speichern“ (Symbol `herz`) neben der Musik-Bedienung, danach steht dort „Gespeichert“.
 
 ## Regel „Marken“ (optional, `settings.tokens`)
 
@@ -216,9 +223,19 @@ Was `skala.js` dafür entgegennimmt (`fest`, `zweifel`, `dieb`, `geklaut`), steh
 | `replay()` | Song von vorn abspielen (`can.audioControl`) |
 | `pauseMusic()`, `resumeMusic()` | Musik für alle anhalten / an derselben Stelle weiterspielen (`can.audioControl`, Zustand in `game.musicPaused`) |
 | `stopMusic()` | Musik ganz anhalten, ohne Stelle zu merken (`can.audioControl`; von der Oberfläche nicht mehr benutzt) |
+| `saveSong()` | aktuelles Lied im eigenen Spotify-Konto speichern (`can.saveSong`, Stand in `room.songSave`) |
 | `setVolume(0..1)` | eigene Lautstärke |
 | `copyInvite()` | Einladungslink in die Zwischenablage (Promise → boolean) |
 | `dismissError()` | Fehlermeldung schließen |
+
+## Viele Karten (`src/ui/skala.js`, `ui.js`)
+
+Die Skala zeigt alle Karten ohne Scrollen, bis zum Höchstziel von 30 Karten. Dafür passiert zweierlei:
+
+- Die Spielseite wächst über ihre übliche Breite von 1320 px hinaus, sobald die längste Zeitleiste aller Spieler mehr Platz braucht (`el.style.maxWidth` in `ui.js`), höchstens bis zur Fensterbreite. Sie richtet sich nach allen Spielern, damit die Breite nicht bei jedem Zug springt.
+- Reicht auch das nicht, werden die Karten der Zeitleiste schmaler. `skala.js` setzt dafür die Form an `.skala[data-form]`: `voll` (wie bisher, mit Titel und Interpret), `schmal` (nur das Jahr) und `eng` (das Jahr in zwei Zeilen). Titel und Interpret stehen dann im Tooltip der Karte. Die Karte im Spiel (`.kachel`) behält ihre lesbare Größe und bekommt ihre Maße getrennt (an `.zeiger`); beim Landen schrumpft sie auf das Maß der Zeitleiste.
+
+Seitlich scrollen lässt sich die Skala nur noch, wenn das Fenster selbst für die kleinste Form zu schmal ist (unter etwa 1200 px bei 30 Karten).
 
 ## Klänge (`src/ui/klang.js`)
 

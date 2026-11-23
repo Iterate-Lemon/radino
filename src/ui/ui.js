@@ -51,6 +51,8 @@ const FAIL_REASON = {
 };
 const AUDIO_STATE = { idle: 'bereit', preparing: 'lädt …', ready: 'bereit', playing: 'läuft', stopped: 'angehalten' };
 const START_OFFSETS = [0, 30, 60];
+const SEITE_BREIT = 1320; // übliche Breite der Seite (wie .seite in ui.css)
+const KARTE_PLATZ = 98; // Platz je Karte auf der Skala, bei dem sie noch Titel und Interpret zeigt
 const MARKEN_PLAETZE = 5; // so viele Marken kann ein Spieler höchstens haben
 const SONGDATEN_URL = 'https://github.com/andygruber/songseeker-hitster-playlists';
 
@@ -483,9 +485,10 @@ function spielAnsicht(app) {
   const unter = h('p', { class: 'unter' });
   const tonStatus = h('span', { class: 'ton-status' });
   const tonKnoepfe = h('span', { class: 'ton-knoepfe' });
+  const tonMerken = h('span', { class: 'ton-knoepfe' }); // aktuelles Lied im eigenen Spotify-Konto speichern
   const regler = h('input', { type: 'range', min: 0, max: 1, step: 0.05, 'aria-label': 'Lautstärke', oninput: (e) => a.setVolume(e.target.value) });
   const lautstaerke = h('label', { class: 'lautstaerke' }, 'Lautstärke', regler);
-  const ton = h('div', { class: 'ton' }, tonStatus, tonKnoepfe, lautstaerke);
+  const ton = h('div', { class: 'ton' }, tonStatus, tonKnoepfe, tonMerken, lautstaerke);
   const aktion = h('div', { class: 'aktion' });
   const reihenPlatz = h('div', {});
   const verlauf = h('ol', { class: 'verlauf' });
@@ -560,6 +563,12 @@ function spielAnsicht(app) {
     const spieler = (id) => g.players.find((p) => p.id === id) || null;
     kopf.update(state);
     meldungen.update(state);
+    // Die Seite wächst mit der längsten Zeitleiste, damit die Karten möglichst lange in
+    // voller Größe nebeneinander passen. Sie richtet sich nach allen Spielern, damit die
+    // Breite nicht bei jedem Zug springt. Schmaler als das Fenster wird sie dadurch nie.
+    const plaetze = Math.max(0, ...g.players.map((p) => p.timeline.length)) + 1;
+    const bedarf = plaetze * KARTE_PLATZ + 10 + 96;
+    el.style.maxWidth = bedarf > SEITE_BREIT ? `${bedarf}px` : '';
 
     // Aufdecken inszenieren: Wird die eben noch verdeckte Karte festgelegt, dreht sie
     // sich erst um und die Ziffern rasten ein. So lange bleibt die Auflösung verborgen.
@@ -694,6 +703,13 @@ function spielAnsicht(app) {
         ? symbolknopf('spiel', 'Weiter', a.resumeMusic, { 'data-fk': 'pause', class: 'hell', title: 'Musik weiterspielen' })
         : symbolknopf('pause', 'Pause', a.pauseMusic, { 'data-fk': 'pause', title: 'Musik anhalten, bis jemand weiterspielt' }),
     ] : null));
+    const merken = r.can.saveSong ? 'idle' : r.songSave === 'idle' ? null : r.songSave;
+    erneuere(tonMerken, merken, () => {
+      if (merken === 'idle') return symbolknopf('herz', 'Speichern', a.saveSong, { 'data-fk': 'merken', title: 'Dieses Lied in deinen Lieblingssongs bei Spotify speichern' });
+      if (merken === 'saving') return h('span', { class: 'gemerkt' }, symbol('herz'), 'Speichert …');
+      if (merken === 'saved') return h('span', { class: 'gemerkt da', role: 'status' }, symbol('herz'), 'Gespeichert');
+      return null;
+    });
     lautstaerke.style.display = hoert ? '' : 'none';
     if (document.activeElement !== regler) regler.value = state.volume;
 

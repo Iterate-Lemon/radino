@@ -29,7 +29,18 @@ const FARBEN = ['#dc7f97', '#4fada3', '#d6a83c', '#7f7ad8', '#dc7850', '#689fd6'
 const farbe = (song) => FARBEN[(((Number(song.y) || 0) * 3) % FARBEN.length + FARBEN.length) % FARBEN.length];
 
 const KARTE_MAX = 164;
-const KARTE_MIN = 88;
+const KARTE_MIN = 88; // schmaler passt der Text nicht mehr: Dann zeigen die Karten nur noch das Jahr
+const KARTE_ENG = 34; // kleinste Breite, das Jahr steht dann in zwei Zeilen
+const JAHR_BREIT = 58; // ab dieser Innenbreite passt das Jahr in eine Zeile
+const KACHEL_SCHMAL = 106; // so groß bleibt die Karte im Spiel, wenn die Zeitleiste schmale Karten hat
+
+// Das Jahr einer Karte: in einer Zeile und, für sehr schmale Karten, in zwei Zeilen.
+// Welche Fassung zu sehen ist, entscheidet die Form der Skala (siehe ui.css).
+function jahrTeile(jahr) {
+  const text = String(jahr);
+  const mitte = Math.ceil(text.length / 2);
+  return [pixeltext(text, 'ganz'), h('span', { class: 'geteilt', 'aria-hidden': 'true' }, pixeltext(text.slice(0, mitte)), pixeltext(text.slice(mitte)))];
+}
 
 // Der Aufbau einer Karte (siehe ui.css): Schatten, Ring, Kante, Fläche mit Loch.
 function karte(klasse, inhalt, marke) {
@@ -149,9 +160,10 @@ export class Skala {
       let el = this.karten.get(s.id);
       if (!el) {
         el = karte('station kommt', [
-          h('div', { class: 'k-jahr' }, pixeltext(s.y)),
+          h('div', { class: 'k-jahr' }, jahrTeile(s.y)),
           h('div', { class: 'k-text' }, h('span', { class: 'k-kuenstler' }, s.a), h('span', { class: 'k-titel' }, s.t)),
         ], h('span', { class: 'k-marke gut' }, symbol('haken')));
+        el.title = `${s.a} – ${s.t} (${s.y})`; // schmale Karten zeigen nur das Jahr
         el.style.setProperty('--farbe', farbe(s));
         this.karten.set(s.id, el);
         this.lage.append(el);
@@ -282,27 +294,37 @@ export class Skala {
     // Ein Platz bleibt frei: beim Wählen für die neue Karte, nach einem Fehlgriff
     // für die Stelle, an die sie gehört hätte.
     const plaetze = Math.max(1, n + (waehlbar || falsch ? 1 : 0));
-    const g = plaetze > 7 ? 10 : 16;
-    // Passen die Karten selbst in kleinster Größe nicht, wird die Skala breiter als
-    // ihr Rahmen und lässt sich seitlich scrollen.
-    const W = Math.max(sichtbar, plaetze * KARTE_MIN + (plaetze + 1) * g);
+    const g = plaetze > 24 ? 4 : plaetze > 16 ? 6 : plaetze > 7 ? 10 : 16;
+    // Viele Karten rücken zusammen und werden schmaler, damit alle ohne Scrollen zu sehen
+    // sind. Erst wenn sie selbst in kleinster Größe nicht passen (sehr schmales Fenster),
+    // wird die Skala breiter als ihr Rahmen und lässt sich seitlich scrollen.
+    const W = Math.max(sichtbar, plaetze * KARTE_ENG + (plaetze + 1) * g);
     this.buehne.style.width = W > sichtbar ? `${W}px` : '';
-    const w = Math.min(KARTE_MAX, Math.max(KARTE_MIN, (W - (plaetze + 1) * g) / plaetze));
+    const w = Math.min(KARTE_MAX, Math.max(KARTE_ENG, (W - (plaetze + 1) * g) / plaetze));
     const total = plaetze * w + (plaetze + 1) * g;
     const start = Math.max(0, (W - total) / 2);
     const s = waehlbar ? v.slot : falsch ? (v.reveal.correctSlots?.[0] ?? 0) : null;
     const schritt = w + g;
 
-    // Kartenmaße: quadratisch, die Pixelgröße der Jahreszahl richtet sich nach der Breite.
-    const wi = w - 6;
-    const H = wi;
-    const p = wi >= 151 ? 5 : wi >= 124 ? 4 : 3; // die Jahreszahl muss in den Innenrahmen passen
+    // Kartenmaße. Form 'voll': quadratisch mit Jahr und Text, die Pixelgröße der Jahreszahl
+    // richtet sich nach der Breite. 'schmal': nur das Jahr. 'eng': das Jahr in zwei Zeilen.
+    const voll = w >= KARTE_MIN;
+    const luft = voll ? 6 : 2; // Abstand, den die Karte in ihrem Platz frei lässt
+    const wi = w - luft;
+    const form = voll ? 'voll' : wi >= JAHR_BREIT ? 'schmal' : 'eng';
+    // die Jahreszahl muss in die Karte passen: in zwei Zeilen darf sie wieder größer sein
+    const p = wi >= 151 ? 5 : wi >= 124 ? 4 : voll ? 3 : form === 'eng' && wi >= 45 ? 3 : 2;
+    const H = voll ? wi : form === 'schmal' ? Math.round(Math.max(54, wi * 0.8)) : p === 3 ? 80 : 60;
+    // Die Karte im Spiel bleibt gut lesbar, auch wenn die Karten der Zeitleiste schmal sind.
+    const wk = voll ? wi : KACHEL_SCHMAL;
+    const pk = wk >= 151 ? 5 : wk >= 124 ? 4 : 3;
     const feiert = v.mode === 'ruhe' && !!v.dino;
     if (feiert && !sofort && !this.maskottchen.classList.contains('da')) spiele('sieg', 0.2);
-    const kopf = v.mode === 'ruhe' ? (feiert ? 78 : 16) : H + 36;
+    const kopf = v.mode === 'ruhe' ? (feiert ? 78 : 16) : wk + 36;
     this.maskottchen.classList.toggle('da', feiert);
     this.maskottchen.style.transform = `translateX(${W / 2 - 36}px)`;
     const oben = kopf + 17;
+    this.buehne.dataset.form = form;
     const st = this.buehne.style;
     st.setProperty('--kw', `${wi}px`);
     st.setProperty('--kh', `${H}px`);
@@ -311,6 +333,12 @@ export class Skala {
     st.setProperty('--kt', `${p >= 5 ? 13 : 12}px`);
     st.setProperty('--kopf', `${kopf}px`);
     st.height = `${oben + H + 10 + 12}px`;
+    const zt = this.zeiger.style;
+    zt.setProperty('--kw', `${wk}px`);
+    zt.setProperty('--kh', `${wk}px`);
+    zt.setProperty('--kp', `${pk}px`);
+    zt.setProperty('--rp', `${pk >= 4 ? 3 : 2}px`);
+    zt.setProperty('--kt', `${pk >= 5 ? 13 : 12}px`);
 
     const xs = [];
     const mitten = []; // Mitte jeder Lücke im aktuellen Layout
@@ -330,23 +358,25 @@ export class Skala {
     // Ruhelage (keine Lücke offen): Grundlage für Trefferflächen und Ziehen.
     const ruheStart = start + (waehlbar ? schritt / 2 : 0);
     const ruheMitte = (i) => ruheStart + g + i * schritt + w / 2;
-    this.geom = { W, sichtbar, n, w, wi, H, oben, mitten, xs, ruheMitte };
+    const ab = luft / 2; // die Karte sitzt mittig in ihrem Platz
+    this.geom = { W, sichtbar, n, w, wi, wk, H, oben, mitten, xs, ruheMitte };
 
     v.stations.forEach((song, i) => {
       const el = this.karten.get(song.id);
-      const ziel = `translate(${xs[i] + 3}px, 0)`;
+      const ziel = `translate(${xs[i] + ab}px, 0)`;
       if (flug && flug.el === el) {
         // Die aufgedeckte Karte fällt von ihrem Platz über der Skala in die Lücke.
         const l = this.lage.getBoundingClientRect();
         el.classList.remove('kommt');
         el.style.transition = 'none';
-        el.style.transform = `translate(${flug.von.left - l.left}px, ${flug.von.top - l.top - oben}px)`;
+        // Sie beginnt so groß wie die Karte im Spiel und schrumpft im Fallen auf ihr Maß.
+        el.style.transform = `translate(${flug.von.left - l.left}px, ${flug.von.top - l.top - oben}px) scale(${flug.von.width / wi})`;
         void el.offsetWidth;
         el.style.transition = '';
         el.classList.add('landet');
-        el.style.transform = ziel;
+        el.style.transform = `${ziel} scale(1)`;
         spiele('richtig', 0.3);
-        setTimeout(() => { el.classList.remove('landet'); this.funken(xs[i] + 3, oben); }, 330);
+        setTimeout(() => { el.classList.remove('landet'); this.funken(xs[i] + ab, oben); }, 330);
         return;
       }
       if (neue.includes(el)) el.style.transition = 'none';
@@ -394,9 +424,9 @@ export class Skala {
       const jahr = String(v.reveal.song.y);
       if (this.geisterJahr.dataset.jahr !== jahr) {
         this.geisterJahr.dataset.jahr = jahr;
-        this.geisterJahr.replaceChildren(pixeltext(jahr));
+        this.geisterJahr.replaceChildren(...jahrTeile(jahr));
       }
-      this.geisterkarte.style.transform = `translate(${start + g + s * schritt + 3}px, 0)`;
+      this.geisterkarte.style.transform = `translate(${start + g + s * schritt + ab}px, 0)`;
       this.geisterText.textContent = v.dieb ? `richtig getippt von ${v.dieb}` : 'hier wäre richtig gewesen';
     }
     this.geisterkarte.classList.toggle('da', falsch);
@@ -493,7 +523,8 @@ export class Skala {
       h('div', { class: 'k-jahr' }, pixeltext(song.y)),
       h('div', { class: 'k-text' }, h('span', { class: 'k-kuenstler' }, song.a), h('span', { class: 'k-titel' }, song.t)),
     ] : []);
-    for (const name of ['--kw', '--kh', '--kp', '--kt']) f.style.setProperty(name, this.buehne.style.getPropertyValue(name));
+    // Maße der Karte im Spiel (sie kann größer sein als die Karten der Zeitleiste)
+    for (const name of ['--kw', '--kh', '--kp', '--kt']) f.style.setProperty(name, this.zeiger.style.getPropertyValue(name));
     if (song) f.style.setProperty('--farbe', farbe(song));
     f.style.left = `${von.left}px`;
     f.style.top = `${von.top}px`;
@@ -525,8 +556,8 @@ export class Skala {
   }
 
   setzeZeiger(x) {
-    const { W, wi } = this.geom;
-    const halb = wi / 2 + 3;
+    const { W, wk } = this.geom;
+    const halb = wk / 2 + 3;
     const schub = Math.min(Math.max(x, halb), W - halb) - x;
     this.zeiger.style.transform = `translateX(${x}px)`;
     this.kachel.style.setProperty('--schub', `${schub}px`);

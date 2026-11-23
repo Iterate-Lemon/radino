@@ -11,6 +11,7 @@ const SCOPES = [
   'user-read-private',
   'user-modify-playback-state',
   'user-read-playback-state',
+  'user-library-modify', // „Lied in Spotify speichern“
 ];
 const TOKEN_KEY = 'radino.spotify.token';
 const PKCE_KEY = 'radino.spotify.pkce';
@@ -71,6 +72,11 @@ class SpotifyAuth extends Emitter {
 
   get loggedIn() {
     return !!local.read(TOKEN_KEY)?.refresh;
+  }
+
+  /** Hat die aktuelle Anmeldung diese Erlaubnis? (Ältere Anmeldungen kennen neue Erlaubnisse nicht.) */
+  hasScope(scope) {
+    return String(local.read(TOKEN_KEY)?.scope || '').split(/\s+/).includes(scope);
   }
 
   /**
