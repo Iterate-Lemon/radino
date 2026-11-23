@@ -1,5 +1,6 @@
 // Namensvorschläge für die Startseite: eine Eigenschaft plus ein Hauptwort, z. B.
 // „Verkaterter Gartenzwerg“, „Panierte Moorleiche“, „Verbeamtetes Furzkissen“.
+// Langweiliges (Toaster, Pinguin, Gießkanne) fliegt raus: Jedes Wort soll schon allein lustig sein.
 // Die Wörter sollen nur lustig sein, gern schräg und ein bisschen frech: Körperliches,
 // Spießiges, Gruseliges, Essen. Mit Musik oder dem Spiel haben sie nichts zu tun.
 // Grenze: nichts Sexuelles, keine Drogen, nichts gegen echte Menschengruppen.
@@ -14,46 +15,74 @@ export const NAME_MAX = 24;
 export const EIGENSCHAFTEN = [
   // Körper und Geruch
   'pupsend', 'rülpsend', 'sabbernd', 'schwitzend', 'schmatzend', 'grunzend', 'kreischend', 'schnarchend',
-  'ungeduscht', 'unrasiert', 'verlaust', 'stinkend', 'müffelnd', 'ranzig', 'vergammelt', 'schimmelig',
-  'schleimig', 'glitschig', 'klebrig', 'haarig', 'warzig', 'nackt', 'halbnackt', 'tätowiert', 'zahnlos',
+  'triefend', 'tropfend', 'ungeduscht', 'unrasiert', 'verschwitzt', 'verlaust', 'stinkend', 'müffelnd',
+  'ranzig', 'vergammelt', 'schimmelig', 'schleimig', 'glitschig', 'eitrig', 'fettig', 'speckig',
+  'käsig', 'schuppig', 'haarig', 'behaart', 'warzig', 'schwabbelig', 'wabbelig', 'zahnlos',
+  'nackt', 'halbnackt', 'tätowiert',
   // Zustand und Charakter
-  'verkatert', 'beschwipst', 'angeheitert', 'durchgeknallt', 'bekloppt', 'wahnsinnig', 'hemmungslos', 'zügellos',
-  'größenwahnsinnig', 'selbstverliebt', 'eingebildet', 'nachtragend', 'beleidigt', 'eifersüchtig', 'verbittert', 'verpeilt',
-  'verfressen', 'dekadent', 'gescheitert', 'abgehalftert', 'verlottert', 'unberechenbar', 'hirnlos', 'kopflos',
+  'verkatert', 'beschwipst', 'angeheitert', 'hackedicht', 'durchgeknallt', 'bekloppt', 'wahnsinnig', 'hysterisch',
+  'cholerisch', 'neurotisch', 'paranoid', 'esoterisch', 'größenwahnsinnig', 'selbstverliebt', 'rechthaberisch', 'missgünstig',
+  'nachtragend', 'eifersüchtig', 'verbittert', 'verpeilt', 'verfressen', 'dekadent', 'hemmungslos', 'zügellos',
+  'skrupellos', 'gnadenlos', 'ahnungslos', 'planlos', 'hirnlos', 'kopflos', 'arbeitsscheu', 'gescheitert',
+  'abgehalftert', 'verlottert', 'unberechenbar', 'spießig', 'kleinkariert',
   // Amtlich und spießig
-  'vorbestraft', 'verschuldet', 'korrupt', 'bestechlich', 'flüchtig', 'zwielichtig', 'dubios', 'illegal',
-  'verbeamtet', 'unkündbar', 'geschieden', 'pensioniert',
+  'vorbestraft', 'polizeibekannt', 'gemeingefährlich', 'verschuldet', 'insolvent', 'gepfändet', 'abgemahnt', 'suspendiert',
+  'beurlaubt', 'steuerpflichtig', 'meldepflichtig', 'korrupt', 'bestechlich', 'flüchtig', 'zwielichtig', 'dubios',
+  'illegal', 'verbeamtet', 'unkündbar', 'geschieden', 'pensioniert',
   // Gruselig und kosmisch
-  'verflucht', 'besessen', 'untot', 'mutiert', 'radioaktiv', 'verstrahlt', 'hochexplosiv', 'kosmisch',
+  'verflucht', 'verhext', 'besessen', 'untot', 'wiedergeboren', 'ausgestopft', 'einbalsamiert', 'mumifiziert',
+  'mutiert', 'radioaktiv', 'verstrahlt', 'hochexplosiv',
   // Wie aus der Küche
-  'paniert', 'frittiert', 'gegrillt', 'eingelegt', 'geräuchert', 'überbacken', 'glasiert', 'abgelaufen',
+  'paniert', 'frittiert', 'flambiert', 'püriert', 'gedünstet', 'geräuchert', 'eingelegt', 'überbacken',
+  'tiefgefroren', 'aufgewärmt', 'angebrannt', 'vakuumiert', 'abgelaufen', 'vegan', 'glutenfrei', 'koffeinfrei',
+  // Wie aus dem Prospekt
+  'aufblasbar', 'beheizt', 'ferngesteuert', 'tiefergelegt', 'frisiert', 'geleast', 'gebraucht', 'generalüberholt',
+  'handgeklöppelt', 'limitiert', 'barrierefrei', 'wasserdicht',
   // Sonstiges Unpassendes
-  'aufblasbar', 'jodelnd', 'sprechend', 'heulend', 'wimmernd', 'tanzend', 'fliegend',
+  'jodelnd', 'sprechend', 'wimmernd',
 ];
 
 // Hauptwörter nach Geschlecht: m = der, f = die, n = das
 export const HAUPTWOERTER = {
   m: [
-    'Toaster', 'Gartenzwerg', 'Wackelpudding', 'Nacktmull', 'Grottenolm', 'Axolotl', 'Popel', 'Fußpilz', 'Mettigel', 'Zehennagel',
-    'Bauchnabel', 'Bierbauch', 'Furz', 'Schweinehund', 'Gerichtsvollzieher', 'Steuerberater', 'Hausmeister', 'Bademeister', 'Elternabend', 'Bausparvertrag',
-    'Leberkäse', 'Kartoffelsalat', 'Rollator', 'Vokuhila', 'Schnauzbart', 'Seitenscheitel', 'Schlüpfer', 'Pantoffel', 'Gummistiefel', 'Weichspüler',
-    'Heizpilz', 'Klappstuhl', 'Kronleuchter', 'Mops', 'Dackel', 'Waschbär', 'Kugelfisch', 'Lurch', 'Zombie', 'Vampir',
-    'Werwolf', 'Yeti', 'Troll', 'Kobold', 'Hausgeist', 'Spießer', 'Wutbürger', 'Influencer', 'Bürokrat', 'Sachbearbeiter',
-    'Kegelverein', 'Staubsauger', 'Kühlschrank', 'Pfannenwender', 'Zwieback', 'Knödel', 'Flamingo', 'Pinguin', 'Kaktus', 'Brokkoli',
+    // Körper
+    'Popel', 'Pickel', 'Furz', 'Fußpilz', 'Nagelpilz', 'Schweißfuß', 'Zahnstein', 'Mundgeruch', 'Hexenschuss', 'Leberfleck',
+    'Zehennagel', 'Bauchnabel', 'Bierbauch', 'Bandwurm', 'Schweinehund',
+    // Spießig und amtlich
+    'Gartenzwerg', 'Jägerzaun', 'Laubbläser', 'Rasensprenger', 'Grillmeister', 'Schrebergarten', 'Stammtisch', 'Kegelverein', 'Elternabend', 'Bausparvertrag',
+    'Strafzettel', 'Mahnbescheid', 'Gerichtsvollzieher', 'Steuerberater', 'Hausmeister', 'Bademeister', 'Schornsteinfeger', 'Kontrolleur', 'Sachbearbeiter', 'Bürokrat',
+    'Spießer', 'Wutbürger', 'Influencer', 'Vokuhila', 'Schnauzbart', 'Seitenscheitel', 'Schlüpfer', 'Pantoffel', 'Rollator',
+    // Essen
+    'Mettigel', 'Rollmops', 'Wackelpudding', 'Leberkäse', 'Kartoffelsalat', 'Wurstsalat', 'Pansen',
+    // Getier und Grusel
+    'Nacktmull', 'Grottenolm', 'Axolotl', 'Blobfisch', 'Lurch', 'Zombie', 'Vampir', 'Werwolf', 'Poltergeist', 'Dämon',
+    'Sensenmann', 'Yeti', 'Troll', 'Kobold',
   ],
   f: [
-    'Klobürste', 'Leberwurst', 'Teewurst', 'Presswurst', 'Currywurst', 'Frikadelle', 'Schwiegermutter', 'Seegurke', 'Nacktschnecke', 'Kakerlake',
-    'Zecke', 'Warze', 'Unterhose', 'Achselhöhle', 'Kloschüssel', 'Pfandflasche', 'Heizdecke', 'Kaffeefahrt', 'Schweinshaxe', 'Bratensoße',
-    'Moorleiche', 'Blindschleiche', 'Wühlmaus', 'Ratte', 'Taube', 'Qualle', 'Ziege', 'Kröte', 'Dauerwelle', 'Zahnspange',
-    'Jogginghose', 'Fußmatte', 'Steuererklärung', 'Dönerbude', 'Discokugel', 'Lavalampe', 'Gießkanne', 'Badewanne', 'Mikrowelle', 'Gurke',
-    'Kartoffel', 'Banane', 'Socke', 'Giraffe', 'Avocado', 'Gans',
+    // Körper
+    'Warze', 'Hornhaut', 'Krampfader', 'Achselhöhle', 'Darmflora', 'Blähung', 'Glatze', 'Halbglatze', 'Dauerwelle', 'Föhnfrisur',
+    'Zahnspange', 'Unterhose', 'Jogginghose', 'Bauchtasche', 'Funktionsjacke',
+    // Spießig und amtlich
+    'Schwiegermutter', 'Hausordnung', 'Kehrwoche', 'Mülltrennung', 'Steuererklärung', 'Abmahnung', 'Kaffeefahrt', 'Kaffeetafel', 'Polonaise', 'Schrankwand',
+    'Eckbank', 'Hollywoodschaukel', 'Raufasertapete', 'Häkeldecke', 'Heizdecke', 'Fußmatte', 'Thermoskanne', 'Tupperdose', 'Discokugel', 'Lavalampe',
+    'Klobürste', 'Klorolle', 'Kloschüssel', 'Spülbürste', 'Pfandflasche', 'Dönerbude',
+    // Essen
+    'Leberwurst', 'Blutwurst', 'Teewurst', 'Presswurst', 'Currywurst', 'Bockwurst', 'Sülze', 'Frikadelle', 'Schweinshaxe', 'Bratensoße',
+    'Mayonnaise', 'Dosensuppe',
+    // Getier und Grusel
+    'Nacktschnecke', 'Blindschleiche', 'Seegurke', 'Kakerlake', 'Zecke', 'Mumie', 'Hexe', 'Moorleiche',
   ],
   n: [
-    'Furzkissen', 'Mettbrötchen', 'Wurstbrot', 'Fischstäbchen', 'Hackfleisch', 'Eisbein', 'Kotelett', 'Schnitzel', 'Gebiss', 'Toupet',
-    'Hörgerät', 'Hühnerauge', 'Achselhaar', 'Nasenhaar', 'Ohrläppchen', 'Ordnungsamt', 'Finanzamt', 'Dixiklo', 'Wasserbett', 'Sparschwein',
-    'Kuscheltier', 'Sumpfmonster', 'Gespenst', 'Alien', 'Schnabeltier', 'Faultier', 'Stinktier', 'Nilpferd', 'Erdmännchen', 'Frettchen',
-    'Opossum', 'Alpaka', 'Walross', 'Schwein', 'Ferkel', 'Huhn', 'Einhorn', 'Gummibärchen', 'Spiegelei', 'Bügeleisen',
-    'Raclette', 'Fondue', 'Krokodil', 'Meerschweinchen',
+    // Körper
+    'Achselhaar', 'Nasenhaar', 'Brusthaar', 'Rückenhaar', 'Ohrenschmalz', 'Ohrläppchen', 'Doppelkinn', 'Muttermal', 'Hühnerauge', 'Gebiss',
+    'Toupet', 'Hörgerät', 'Kassengestell', 'Hirn',
+    // Spießig und amtlich
+    'Finanzamt', 'Ordnungsamt', 'Bürgeramt', 'Formular', 'Aktenzeichen', 'Faxgerät', 'Diktiergerät', 'Schnurtelefon', 'Reihenhaus', 'Vereinsheim',
+    'Schützenfest', 'Kaffeekränzchen', 'Gewerbegebiet', 'Sparschwein', 'Furzkissen', 'Fußbad', 'Dixiklo', 'Plumpsklo', 'Klopapier',
+    // Essen
+    'Mettbrötchen', 'Wurstbrot', 'Fischstäbchen', 'Hackfleisch', 'Eisbein', 'Labskaus', 'Schweineohr', 'Grillhähnchen', 'Spanferkel',
+    // Getier und Grusel
+    'Sumpfmonster', 'Gespenst', 'Alien', 'Schnabeltier', 'Stinktier', 'Ferkel',
   ],
 };
 
