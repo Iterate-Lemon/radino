@@ -186,10 +186,17 @@ test('Aufdecken: bei gleichen Jahren gewinnt, wer zuerst angezweifelt hat', () =
 test('Geklaute Karte kann das Kartenziel erreichen', () => {
   let s = locked({ target: 2, card: 'h' }, 0);
   s = apply(s, { type: 'challenge', by: 'G', slot: 1 });
+  // G hat das Ziel erreicht, ist in dieser Runde aber selbst noch dran: Das Spiel läuft weiter.
+  eq(s.phase, 'reveal');
+  eq(publicView(s, ctx).chase, { count: 2, ids: ['G'], left: ['G'] });
+  eq(publicView(s, ctx).card.song.id, 'h');
+  s = apply(s, { type: 'next', by: 'H' });
+  s = apply(s, { type: 'select', by: 'G', slot: 0 });
+  s = apply(s, { type: 'lock', by: 'G', now: NOW });
+  if (s.phase === 'challenge') s = apply(s, { type: 'endChallenge', by: 'H' });
   eq(s.phase, 'ended');
   eq(s.endReason, 'target');
   eq(s.winners, ['G']);
-  eq(publicView(s, ctx).card.song.id, 'h');
 });
 
 test('Zeitlimit und Host beenden die Phase, Gäste nicht', () => {

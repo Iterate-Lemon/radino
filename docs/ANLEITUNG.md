@@ -121,7 +121,8 @@ Die Songliste enthält 2.753 Songs mit dem Erscheinungsjahr von den Originalkart
 - Wer dran ist, hört einen Song.
 - Er klickt in seiner Zeitleiste auf das **„+“**, wo der Song hingehört, und dann auf **„Hier festlegen“**.
 - Danach werden Jahr, Titel und Interpret aufgedeckt. Liegt die Karte richtig, bleibt sie liegen.
-- Wer zuerst die eingestellte Kartenzahl erreicht (Standard: 10, die Startkarte zählt mit), gewinnt.
+- Ziel ist die eingestellte Kartenzahl (Standard: 10, die Startkarte zählt mit). Erreicht sie jemand, wird die Runde noch zu Ende gespielt, damit alle gleich oft dran waren: Wer später in der Reihenfolge sitzt, darf nachziehen.
+- Hat danach einer allein die meisten Karten, gewinnt er. Bei Gleichstand scheiden alle anderen aus, und die Führenden spielen Runde um Runde weiter, bis einer allein vorn liegt.
 - Kurz reden, ohne dass ein Lied läuft: Der Host oder wer gerade dran ist, klickt neben der Lautstärke auf **„Pause“**. Die Musik bleibt für alle aus, auch wenn die nächste Runde beginnt, bis jemand auf **„Weiter“** klickt. Dann geht es an derselben Stelle weiter.
 - Gefällt dir ein Lied? Wer selbst über Spotify hört (bei „Jeder hört selbst“ alle, sonst der Host), klickt neben der Lautstärke auf **„♥ Speichern“**. Das Lied landet in den Lieblingssongs des eigenen Spotify-Kontos. Beim ersten Mal fragt Spotify einmal nach der Erlaubnis dafür.
 - Die leisen Klänge zu Knöpfen und Karten schaltet jeder für sich mit dem Lautsprecher-Symbol unten rechts aus und ein.

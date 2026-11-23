@@ -141,6 +141,7 @@ ol, ul { list-style: none; }
 }
 .kopf .lockup { margin-right: auto; }
 .kopf .lage { font-size: 13px; color: var(--leise); white-space: pre; }
+.kopf .lage.hell { color: var(--leucht); } /* Kartenziel erreicht: letzte Runde oder Gleichstand */
 
 /* ── Start ─────────────────────────────────────────────────────────────────── */
 

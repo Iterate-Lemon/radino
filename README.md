@@ -2,7 +2,7 @@
 
 Ein Musik-Zeitleisten-Spiel für den Browser, das man online mit Freunden spielt.
 Ein Song läuft verdeckt, und wer dran ist, ordnet ihn in seine Zeitleiste ein: davor, danach oder dazwischen.
-Danach wird das Jahr aufgedeckt. Wer zuerst 10 Karten in seiner Zeitleiste hat, gewinnt.
+Danach wird das Jahr aufgedeckt. Ziel sind 10 Karten in der eigenen Zeitleiste. Erreicht sie jemand, wird die Runde zu Ende gespielt, damit alle gleich oft dran waren; bei Gleichstand spielen die Führenden weiter.
 
 - **Kein Server, keine laufenden Kosten:** eine statische Seite (z. B. GitHub Pages). Der Browser des Hosts leitet das Spiel. Die Mitspieler tauschen ihre verschlüsselten Spielnachrichten mit ihm über kostenlose öffentliche Verbindungsdienste aus.
 - **Musik über Spotify** (Web Playback SDK), in zwei Modi:

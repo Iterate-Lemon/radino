@@ -182,13 +182,23 @@ function baueKopf(app) {
   const el = h('header', { class: 'kopf' }, lockup(), lage, status, raus);
   return {
     el,
-    update(state) {
+    // halten = true: Die Lage bleibt stehen, solange sich eine Karte noch umdreht (sie verriete sonst das Ergebnis).
+    update(state, halten = false) {
       const r = state.room;
       const g = r.game;
       const laeuft = g && (g.phase === 'turn' || g.phase === 'challenge' || g.phase === 'reveal');
+      if (!halten) {
+      // Ist das Kartenziel erreicht, steht hier, wie es um das Spielende steht.
+      const namen = (ids) => (ids || []).map((id) => (id === r.me ? 'du' : g.players.find((p) => p.id === id)?.name ?? '?')).join(' & ');
+      const ch = laeuft ? g.chase : null;
+      const ziel = !laeuft ? '' : !ch ? `Ziel: ${g.settings.target} Karten`
+        : g.out?.length || ch.ids.length > 1 ? `Gleichstand bei ${ch.count} Karten: ${namen(ch.ids)}`
+          : `Letzte Runde: ${namen(ch.ids)} ${ch.ids[0] === r.me ? 'hast' : 'hat'} ${ch.count} Karten`;
       lage.textContent = laeuft
-        ? `Karte ${g.round}  ·  noch ${g.deckLeft.toLocaleString('de-DE')} im Stapel  ·  Ziel: ${g.settings.target} Karten`
+        ? `Karte ${g.round}  ·  noch ${g.deckLeft.toLocaleString('de-DE')} im Stapel  ·  ${ziel}`
         : '';
+      lage.classList.toggle('hell', laeuft && !!ch);
+      }
       const c = r.connection;
       status.className = `punkt-status ${c === 'online' ? '' : ['rejected', 'kicked', 'error'].includes(c) ? 'fehler' : 'warn'}`.trim();
       status.textContent = CONNECTION[c] || c;
@@ -226,9 +236,10 @@ function naechsterSpieler(g, aktivId) {
   const n = g.order.length;
   const idx = g.order.indexOf(aktivId);
   if (!n || idx < 0) return null;
+  const raus = g.out || [];
   for (let i = 1; i <= n; i++) {
     const p = g.players.find((x) => x.id === g.order[(idx + i) % n]);
-    if (p?.connected) return p;
+    if (p?.connected && !raus.includes(p.id)) return p;
   }
   return g.players.find((x) => x.id === g.order[(idx + 1) % n]) || null;
 }
@@ -561,7 +572,6 @@ function spielAnsicht(app) {
     const g = r.game;
     const c = g.card;
     const spieler = (id) => g.players.find((p) => p.id === id) || null;
-    kopf.update(state);
     meldungen.update(state);
     // Die Seite wächst mit der längsten Zeitleiste, damit die Karten möglichst lange in
     // voller Größe nebeneinander passen. Sie richtet sich nach allen Spielern, damit die
@@ -598,6 +608,7 @@ function spielAnsicht(app) {
     if (klaut !== null && (!c || c.round !== klaut || g.phase !== 'reveal' || !c.wonBy)) { klaut = null; skala.klauAbbruch(); }
     if (rollt === null) gesehen = { runde: c?.round ?? null, locked: !!c?.locked };
     const verdeckt = rollt !== null;
+    kopf.update(state, verdeckt);
 
     const phase = verdeckt ? 'turn' : g.phase;
     const mitMarken = !!g.settings.tokens;
@@ -664,14 +675,19 @@ function spielAnsicht(app) {
       const namen = r.winners.map((p) => p.name);
       const nurIch = r.winners.length === 1 && r.winners[0].id === r.me;
       setzeTitel(titel, !namen.length ? 'Spiel beendet.' : nurIch ? 'Du gewinnst!' : `${namen.join(' & ')} ${namen.length > 1 ? 'gewinnen' : 'gewinnt'}!`, namen.length ? 'gut' : '');
-      const grund = g.endReason === 'target' ? `${g.settings.target} Karten erreicht.` : g.endReason === 'deck' ? 'Der Stapel ist leer.' : 'Der Host hat das Spiel beendet.';
+      const grund = g.endReason === 'target' ? `${Math.max(g.settings.target, r.winners[0]?.timeline.length ?? 0)} Karten erreicht.` : g.endReason === 'deck' ? 'Der Stapel ist leer.' : 'Der Host hat das Spiel beendet.';
       unter.textContent = zeige ? `${grund} Das ist die Zeitleiste von ${zeige.id === r.me ? 'dir' : zeige.name}:` : grund;
     } else if (phase === 'reveal') {
       const s = c.song;
       if (ichDran) setzeTitel(titel, c.correct ? 'Richtig!' : 'Leider falsch.', c.correct ? 'gut' : 'falsch');
       else if (c.wonBy) setzeTitel(titel, c.wonBy === r.me ? 'Du klaust die Karte!' : `${spieler(c.wonBy)?.name ?? '?'} klaut die Karte!`, 'gut');
       else setzeTitel(titel, `${aktiv?.name ?? '?'} liegt ${c.correct ? 'richtig!' : 'falsch.'}`, c.correct ? 'gut' : 'falsch');
-      unter.textContent = `${s.a} – ${s.t} ist von ${s.y}. ${c.correct ? 'Die Karte bleibt.' : c.wonBy ? `Die Karte geht an ${c.wonBy === r.me ? 'dich' : spieler(c.wonBy)?.name ?? '?'}.` : 'Die Karte ist weg.'}`;
+      // Kartenziel erreicht, aber noch nicht gewonnen: sagen, wie es weitergeht.
+      const ch = g.chase;
+      let ende = '';
+      if (ch && ch.left.length) ende = ` ${ch.count} Karten sind erreicht: Wer in dieser Runde noch dran ist, darf nachziehen.`;
+      else if (ch) ende = ` Gleichstand bei ${ch.count} Karten: ${ch.ids.map(wer).join(' und ')} spielen weiter${g.out?.length ? ', alle anderen sind raus' : ''}.`;
+      unter.textContent = `${s.a} – ${s.t} ist von ${s.y}. ${c.correct ? 'Die Karte bleibt.' : c.wonBy ? `Die Karte geht an ${c.wonBy === r.me ? 'dich' : spieler(c.wonBy)?.name ?? '?'}.` : 'Die Karte ist weg.'}${ende}`;
     } else if (phase === 'challenge') {
       setzeTitel(titel, 'Anzweifeln?');
       unter.textContent = ichDran ? 'Deine Lücke steht fest. Die anderen dürfen jetzt anzweifeln.'
@@ -789,7 +805,8 @@ function spielAnsicht(app) {
     const markiert = phase === 'ended' ? null : aktiv?.id;
     const unterwegs = verdeckt || (klaut !== null && klaut === c?.round); // Karte dreht sich noch oder fliegt zum Dieb
     const zeigbar = unterwegs && (c.correct || c.wonBy) ? c.song.id : null; // noch nicht verraten
-    erneuere(reihenPlatz, [liste.map((p) => [p.id, p.name, p.connected, p.host, p.timeline.map((s) => s.y), musikMarke(g, p), mitMarken && p.tokens]), markiert, ziel, r.me, r.can.kick, zeigbar, gelandet], () => {
+    erneuere(reihenPlatz, [liste.map((p) => [p.id, p.name, p.connected, p.host, p.timeline.map((s) => s.y), musikMarke(g, p), mitMarken && p.tokens]), markiert, ziel, r.me, r.can.kick, zeigbar, gelandet, g.out], () => {
+      const ausgeschieden = g.out || [];
       if (mitMarken && liste.some((p) => p.tokens > (markenVorher.get(p.id) ?? p.tokens))) spiele('marke');
       return h('ul', { class: 'reihen' }, liste.map((p) => {
         const karten = zeigbar ? p.timeline.filter((s) => s.id !== zeigbar) : p.timeline;
@@ -797,11 +814,12 @@ function spielAnsicht(app) {
         const striche = Math.max(karten.length, ziel <= 12 ? ziel : 0);
         const mehrMarken = mitMarken && p.tokens > (markenVorher.get(p.id) ?? p.tokens);
         if (mitMarken) markenVorher.set(p.id, p.tokens);
-        return h('li', { class: `reihe${mitMarken ? ' mit-marken' : ''}${p.id === markiert ? ' dran' : ''}${p.connected ? '' : ' getrennt'}`, 'data-spieler': p.id },
+        const raus = phase !== 'ended' && ausgeschieden.includes(p.id); // nach einem Gleichstand ausgeschieden
+        return h('li', { class: `reihe${mitMarken ? ' mit-marken' : ''}${p.id === markiert ? ' dran' : ''}${p.connected && !raus ? '' : ' getrennt'}`, 'data-spieler': p.id },
           h('span', { class: 'wer' },
             h('span', { class: 'name' }, p.name),
             p.id === r.me ? h('span', { class: 'marke' }, 'du') : null,
-            !p.connected ? h('span', { class: 'marke' }, 'getrennt') : m && m.art ? h('span', { class: `marke ${m.art}` }, m.text) : null),
+            raus ? h('span', { class: 'marke' }, 'raus') : !p.connected ? h('span', { class: 'marke' }, 'getrennt') : m && m.art ? h('span', { class: `marke ${m.art}` }, m.text) : null),
           mitMarken ? markenReihe(p.tokens, mehrMarken) : null,
           h('span', { class: 'stand', role: 'img', 'aria-label': `${karten.length} von ${ziel} Karten` }, pixeltext(`${karten.length}/${ziel}`)),
           h('ol', { class: 'mini', 'aria-label': `Zeitleiste von ${p.name}` },

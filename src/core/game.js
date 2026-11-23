@@ -5,6 +5,12 @@
 // "Effekte" (z. B. Song abspielen), die die App-Schicht ausführt.
 // Spieler sehen nur publicView(): darin fehlt der verdeckte Song.
 //
+// Spielende ("Nachziehen"): Erreicht jemand das Kartenziel, wird die laufende Runde
+// (ein Durchgang durch die Zugreihenfolge) noch zu Ende gespielt, damit alle gleich
+// oft dran waren. Danach gewinnt, wer die meisten Karten hat. Bei Gleichstand
+// scheiden alle anderen aus (state.out) und die Führenden spielen weitere Runden,
+// bis nach einer Runde einer allein vorn liegt.
+//
 // ctx = { yearOf(songId) -> number, info(songId) -> {t,a,y,img}, rng() -> [0,1) }
 
 import { slotIsCorrect, correctSlots, shuffle } from './rules.js';
@@ -58,6 +64,7 @@ export function createGame(settings = {}) {
     deck: [],
     discard: [],
     winners: [],
+    out: [], // ausgeschiedene Spieler (Gleichstand nach Erreichen des Kartenziels)
     endReason: null, // target | deck | host
     log: [],
     tokenLog: [], // Marken-Protokoll fürs ganze Spiel: { r, k, p, name, by?, byName?, won?, n }
@@ -70,6 +77,7 @@ export function upgradeGame(state) {
   state.settings = normalizeSettings(state.settings || {}, { ...DEFAULT_SETTINGS, ...(state.settings || {}) });
   for (const p of state.players || []) if (!Number.isInteger(p.tokens)) p.tokens = TOKENS.start;
   if (!Array.isArray(state.tokenLog)) state.tokenLog = [];
+  if (!Array.isArray(state.out)) state.out = [];
   return state;
 }
 
@@ -123,7 +131,7 @@ export function pendingChallengers(state) {
   if (!freeChallengeSlots(state).length) return [];
   const ch = card.challenge;
   return state.players
-    .filter((p) => p.id !== card.by && p.connected && p.tokens >= 1)
+    .filter((p) => p.id !== card.by && p.connected && p.tokens >= 1 && !state.out.includes(p.id))
     .filter((p) => !ch.passed.includes(p.id) && !ch.picks.some((c) => c.p === p.id))
     .map((p) => p.id);
 }
@@ -154,11 +162,48 @@ function resolveCard(s, ctx, effects) {
   addLog(s, { k: 'placed', p: p.id, s: card.s, ok });
   if (thief) addLog(s, { k: 'stolen', p: thief.id, from: p.id, s: card.s });
   s.phase = 'reveal';
-  const winner = ok ? p : thief;
-  if (winner && winner.timeline.length >= s.settings.target) {
-    s.winners = [winner.id];
+  // War das der letzte Zug der Runde, steht jetzt fest, ob jemand gewonnen hat.
+  if (!lapLeft(s).length) settleLap(s, effects);
+}
+
+const inPlay = (s) => s.players.filter((p) => s.order.includes(p.id) && !s.out.includes(p.id));
+
+/** Wer in der laufenden Runde nach dem aktuellen Zug noch drankommt. */
+export function lapLeft(state) {
+  return state.order
+    .slice(state.turn + 1)
+    .filter((id) => !state.out.includes(id) && playerById(state, id)?.connected);
+}
+
+/** Höchster Kartenstand, falls das Kartenziel erreicht ist (sonst null), und wer ihn hat. */
+export function leaders(state) {
+  const players = inPlay(state);
+  const max = Math.max(0, ...players.map((p) => p.timeline.length));
+  if (max < state.settings.target) return null;
+  return { count: max, ids: players.filter((p) => p.timeline.length === max).map((p) => p.id) };
+}
+
+// Rundenende: Liegt jemand am Kartenziel allein vorn, hat er gewonnen. Bei Gleichstand
+// scheiden alle anderen aus, die Führenden spielen weiter.
+function settleLap(s, effects) {
+  const lead = leaders(s);
+  if (!lead) return;
+  if (lead.ids.length === 1) {
+    s.winners = lead.ids;
     finish(s, 'target', effects);
+    return;
   }
+  for (const p of inPlay(s)) if (!lead.ids.includes(p.id)) s.out.push(p.id);
+}
+
+// Zug weitergeben. Endet damit die Runde, wird sie vorher ausgewertet.
+function passTurn(s, effects) {
+  if (!lapLeft(s).length) {
+    settleLap(s, effects);
+    if (s.phase === 'ended') return;
+  }
+  advance(s);
+  beginTurn(s, effects);
 }
 
 // Anzweifel-Phase beenden, sobald niemand mehr aussteht.
@@ -171,8 +216,9 @@ function finish(s, reason, effects) {
   s.phase = 'ended';
   s.endReason = reason;
   if (reason !== 'target') {
-    const max = Math.max(0, ...s.players.map((p) => p.timeline.length));
-    s.winners = s.players.filter((p) => p.timeline.length === max && max > 0).map((p) => p.id);
+    const players = inPlay(s).length ? inPlay(s) : s.players.filter((p) => !s.out.includes(p.id));
+    const max = Math.max(0, ...players.map((p) => p.timeline.length));
+    s.winners = players.filter((p) => p.timeline.length === max && max > 0).map((p) => p.id);
   }
   if (reason === 'host') effects.push({ type: 'stop' });
 }
@@ -194,13 +240,22 @@ function beginTurn(s, effects) {
   effects.push({ type: 'play', songId, round: s.round });
 }
 
-// Nächster verbundener Spieler in der Reihenfolge (getrennte werden übersprungen).
+// Nächster verbundener Spieler in der Reihenfolge (getrennte und ausgeschiedene werden übersprungen).
 function advance(s) {
   const n = s.order.length;
   if (!n) return;
+  const playing = (id) => !s.out.includes(id);
   for (let i = 1; i <= n; i++) {
     const idx = (s.turn + i) % n;
-    if (playerById(s, s.order[idx])?.connected) {
+    if (playing(s.order[idx]) && playerById(s, s.order[idx])?.connected) {
+      s.turn = idx;
+      return;
+    }
+  }
+  // Niemand verbunden: der nächste, der noch im Spiel ist
+  for (let i = 1; i <= n; i++) {
+    const idx = (s.turn + i) % n;
+    if (playing(s.order[idx])) {
       s.turn = idx;
       return;
     }
@@ -273,18 +328,18 @@ export function reduce(state, action, ctx) {
       const p = playerById(s, action.id);
       if (!p || p.host) return fail(state, 'forbidden');
       s.players = s.players.filter((x) => x.id !== p.id);
+      s.out = s.out.filter((id) => id !== p.id);
       const idx = s.order.indexOf(p.id);
       if (idx >= 0) {
         s.order.splice(idx, 1);
         const wasActive = (s.phase === 'turn' || s.phase === 'challenge' || s.phase === 'reveal') && s.card?.by === p.id;
         if (idx < s.turn) s.turn -= 1;
-        if (s.turn >= s.order.length) s.turn = 0;
         if (wasActive) {
           if (s.phase !== 'reveal') s.discard.push(s.card.s);
           closeSpent(s); // eingesetzte Marken sind weg, die Karte wird nicht aufgedeckt
-          // s.turn zeigt nach dem Entfernen bereits auf den nächsten Spieler.
-          if (s.order.length && !playerById(s, s.order[s.turn])?.connected) advance(s);
-          beginTurn(s, effects);
+          // Der Zug geht weiter, als wäre er vorbei: vom Platz davor aus zum Nächsten.
+          s.turn -= 1;
+          passTurn(s, effects);
         } else if (s.phase === 'challenge') {
           const ch = s.card.challenge;
           ch.picks = ch.picks.filter((c) => c.p !== p.id);
@@ -311,6 +366,7 @@ export function reduce(state, action, ctx) {
       s.deck = deck;
       s.discard = [];
       s.winners = [];
+      s.out = [];
       s.endReason = null;
       s.log = [];
       s.tokenLog = [];
@@ -405,8 +461,7 @@ export function reduce(state, action, ctx) {
 
     case 'next': {
       if (s.phase !== 'reveal' || !(by === active || host)) return fail(state, 'forbidden');
-      advance(s);
-      beginTurn(s, effects);
+      passTurn(s, effects);
       break;
     }
 
@@ -424,8 +479,7 @@ export function reduce(state, action, ctx) {
       if (s.phase !== 'turn' || !host) return fail(state, 'forbidden');
       s.discard.push(s.card.s);
       addLog(s, { k: 'turnSkipped', p: s.card.by });
-      advance(s);
-      beginTurn(s, effects);
+      passTurn(s, effects);
       break;
     }
 
@@ -444,6 +498,7 @@ export function reduce(state, action, ctx) {
       s.order = [];
       s.turn = 0;
       s.winners = [];
+      s.out = [];
       s.endReason = null;
       s.log = [];
       s.tokenLog = [];
@@ -464,6 +519,7 @@ export function reduce(state, action, ctx) {
 /** Sicht für alle Spieler (auch den Host selbst): ohne Stapel und ohne verdeckten Song. */
 export function publicView(state, ctx) {
   const card = state.card;
+  const playing = state.phase === 'turn' || state.phase === 'challenge' || state.phase === 'reveal';
   const showSong = card && card.locked;
   let cardView = null;
   if (card && state.phase !== 'lobby') {
@@ -507,6 +563,9 @@ export function publicView(state, ctx) {
     card: cardView,
     deckLeft: state.deck.length,
     winners: state.winners.slice(),
+    out: (state.out || []).slice(),
+    // Kartenziel erreicht, das Spiel läuft noch: wer vorn liegt und wer in dieser Runde noch nachziehen kann
+    chase: playing && leaders(state) ? { ...leaders(state), left: lapLeft(state) } : null,
     endReason: state.endReason,
     log: state.log.map((e) => (e.s && (e.k === 'placed' || e.k === 'skipped' || e.k === 'stolen') ? { ...e, song: ctx.info(e.s) } : { ...e })),
     tokenLog: (state.tokenLog || []).map((e) => ({ ...e })),

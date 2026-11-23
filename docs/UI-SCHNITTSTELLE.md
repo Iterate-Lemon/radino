@@ -104,6 +104,8 @@ Ob eine Schaltfläche aktiv sein soll, steht in `state.room.can.*`. Die Oberflä
   },
   deckLeft: number,
   winners: [playerId],
+  out: [playerId],                 // nach einem Gleichstand ausgeschieden (siehe „Spielende“)
+  chase: null | { count, ids: [playerId], left: [playerId] }, // Kartenziel erreicht, das Spiel läuft noch
   endReason: 'target' | 'deck' | 'host' | null,
   log: [{ k: 'placed'|'skipped'|'turnSkipped'|'joined'|'left'|'stolen'|'token'|'tokenRevoked', p?, ok?, song?, reason?, name?, from?, by? }],
   tokenLog: [TokenEntry],          // Marken-Protokoll des ganzen Spiels, älteste zuerst (höchstens 500)
@@ -116,6 +118,18 @@ Player = { id, name, host, connected, timeline: [{ id, t, a, y, img }], tokens: 
 **Lücken (slots):** Bei einer Zeitleiste mit `n` Karten gibt es `n + 1` Lücken. Lücke `0` liegt vor der ersten Karte, Lücke `n` nach der letzten.
 
 `img` ist eine Cover-URL von `i.scdn.co`, falls beim Abgleich gefunden. Sonst ist der Wert `null`.
+
+## Spielende: Nachziehen und Gleichstand
+
+Wer anfängt, wäre sonst im Vorteil. Deshalb endet das Spiel nicht in dem Moment, in dem jemand das Kartenziel erreicht:
+
+1. Die laufende Runde (ein Durchgang durch `order`) wird zu Ende gespielt. Solange gilt `game.chase`: `count` ist der höchste Kartenstand, `ids` sind die Spieler, die ihn haben, `left` die Spieler, die in dieser Runde noch drankommen.
+2. Am Rundenende gewinnt, wer allein die meisten Karten hat (`phase: 'ended'`, `endReason: 'target'`). Hat der Letzte der Runde das Ziel als Einziger erreicht, endet das Spiel wie bisher direkt beim Aufdecken.
+3. Bei Gleichstand kommen alle anderen in `game.out`: Sie kommen nicht mehr dran und dürfen nicht mehr anzweifeln. Die Führenden spielen weitere Runden, bis nach einer Runde einer allein vorn liegt.
+
+Getrennte Spieler werden wie immer übersprungen und halten das Rundenende nicht auf. Auch geklaute Karten (Regel „Marken“) zählen erst am Rundenende. Bei leerem Stapel oder „Spiel beenden“ gewinnt wie bisher, wer von den verbliebenen Spielern die meisten Karten hat.
+
+In `src/ui/` steht der Stand in der Kopfzeile („Letzte Runde: …“ bzw. „Gleichstand bei … Karten: …“, in Orange) und nach dem Aufdecken im Satz unter der Überschrift. Ausgeschiedene sind unter „Zeitleisten“ grau und tragen „raus“.
 
 ## Musik anhalten
 
