@@ -1,6 +1,8 @@
 // Namensvorschläge für die Startseite: eine Eigenschaft plus ein Hauptwort, z. B.
-// „Tanzender Toaster“, „Tanzende Tomate“, „Tanzendes Telefon“.
-// Die Wörter sollen nur lustig sein, mit Musik oder dem Spiel haben sie nichts zu tun.
+// „Verkaterter Gartenzwerg“, „Panierte Moorleiche“, „Verbeamtetes Furzkissen“.
+// Die Wörter sollen nur lustig sein, gern schräg und ein bisschen frech: Körperliches,
+// Spießiges, Gruseliges, Essen. Mit Musik oder dem Spiel haben sie nichts zu tun.
+// Grenze: nichts Sexuelles, keine Drogen, nichts gegen echte Menschengruppen.
 //
 // Ohne Artikel bekommt die Eigenschaft die starke Endung: -er (der), -e (die), -es (das).
 // Deshalb stehen hier nur Eigenschaften, die diese Endungen ohne Änderung annehmen
@@ -10,40 +12,48 @@
 export const NAME_MAX = 24;
 
 export const EIGENSCHAFTEN = [
-  'tanzend', 'schlafend', 'flauschig', 'verwirrt', 'mutig', 'kichernd', 'hüpfend', 'wackelnd',
-  'grummelig', 'knusprig', 'glitzernd', 'verträumt', 'frech', 'neugierig', 'zappelig', 'pummelig',
-  'beleidigt', 'verschlafen', 'gemütlich', 'fliegend', 'schwebend', 'kitzlig', 'heimlich', 'würdevoll',
-  'sportlich', 'dramatisch', 'schüchtern', 'gähnend', 'schnarchend', 'quietschend', 'schlotternd', 'zerzaust',
-  'verliebt', 'wütend', 'fröhlich', 'grimmig', 'mürrisch', 'nervös', 'lässig', 'vornehm',
-  'tapfer', 'zerstreut', 'mysteriös', 'elegant', 'hungrig', 'gestreift', 'gepunktet', 'kariert',
-  'verbeult', 'klebrig', 'wuschelig', 'pfiffig', 'listig', 'flink', 'höflich', 'schick',
-  'flott', 'kugelrund', 'winzig', 'riesig', 'magisch', 'launisch', 'galaktisch', 'königlich',
-  'berühmt', 'verschnupft', 'leuchtend', 'brummend', 'watschelnd', 'schielend', 'stolpernd', 'jonglierend',
-  'grübelnd',
+  // Körper und Geruch
+  'pupsend', 'rülpsend', 'sabbernd', 'schwitzend', 'schmatzend', 'grunzend', 'kreischend', 'schnarchend',
+  'ungeduscht', 'unrasiert', 'verlaust', 'stinkend', 'müffelnd', 'ranzig', 'vergammelt', 'schimmelig',
+  'schleimig', 'glitschig', 'klebrig', 'haarig', 'warzig', 'nackt', 'halbnackt', 'tätowiert', 'zahnlos',
+  // Zustand und Charakter
+  'verkatert', 'beschwipst', 'angeheitert', 'durchgeknallt', 'bekloppt', 'wahnsinnig', 'hemmungslos', 'zügellos',
+  'größenwahnsinnig', 'selbstverliebt', 'eingebildet', 'nachtragend', 'beleidigt', 'eifersüchtig', 'verbittert', 'verpeilt',
+  'verfressen', 'dekadent', 'gescheitert', 'abgehalftert', 'verlottert', 'unberechenbar', 'hirnlos', 'kopflos',
+  // Amtlich und spießig
+  'vorbestraft', 'verschuldet', 'korrupt', 'bestechlich', 'flüchtig', 'zwielichtig', 'dubios', 'illegal',
+  'verbeamtet', 'unkündbar', 'geschieden', 'pensioniert',
+  // Gruselig und kosmisch
+  'verflucht', 'besessen', 'untot', 'mutiert', 'radioaktiv', 'verstrahlt', 'hochexplosiv', 'kosmisch',
+  // Wie aus der Küche
+  'paniert', 'frittiert', 'gegrillt', 'eingelegt', 'geräuchert', 'überbacken', 'glasiert', 'abgelaufen',
+  // Sonstiges Unpassendes
+  'aufblasbar', 'jodelnd', 'sprechend', 'heulend', 'wimmernd', 'tanzend', 'fliegend',
 ];
 
 // Hauptwörter nach Geschlecht: m = der, f = die, n = das
 export const HAUPTWOERTER = {
   m: [
-    'Toaster', 'Pinguin', 'Kaktus', 'Waschbär', 'Igel', 'Keks', 'Pudding', 'Staubsauger', 'Koala', 'Hamster',
-    'Schneemann', 'Gartenzwerg', 'Brokkoli', 'Elch', 'Dackel', 'Pfannkuchen', 'Kühlschrank', 'Tintenfisch', 'Rasenmäher', 'Turnschuh',
-    'Blumenkohl', 'Seehund', 'Maulwurf', 'Schnurrbart', 'Wombat', 'Hummer', 'Zwieback', 'Marienkäfer', 'Wackelpudding', 'Kürbis',
-    'Teppich', 'Regenschirm', 'Bagger', 'Frosch', 'Kobold', 'Ritter', 'Pirat', 'Zauberer', 'Roboter', 'Astronaut',
-    'Yeti', 'Flamingo', 'Papagei', 'Otter', 'Biber', 'Muffin', 'Knödel', 'Lebkuchen', 'Löffel', 'Schneebesen',
+    'Toaster', 'Gartenzwerg', 'Wackelpudding', 'Nacktmull', 'Grottenolm', 'Axolotl', 'Popel', 'Fußpilz', 'Mettigel', 'Zehennagel',
+    'Bauchnabel', 'Bierbauch', 'Furz', 'Schweinehund', 'Gerichtsvollzieher', 'Steuerberater', 'Hausmeister', 'Bademeister', 'Elternabend', 'Bausparvertrag',
+    'Leberkäse', 'Kartoffelsalat', 'Rollator', 'Vokuhila', 'Schnauzbart', 'Seitenscheitel', 'Schlüpfer', 'Pantoffel', 'Gummistiefel', 'Weichspüler',
+    'Heizpilz', 'Klappstuhl', 'Kronleuchter', 'Mops', 'Dackel', 'Waschbär', 'Kugelfisch', 'Lurch', 'Zombie', 'Vampir',
+    'Werwolf', 'Yeti', 'Troll', 'Kobold', 'Hausgeist', 'Spießer', 'Wutbürger', 'Influencer', 'Bürokrat', 'Sachbearbeiter',
+    'Kegelverein', 'Staubsauger', 'Kühlschrank', 'Pfannenwender', 'Zwieback', 'Knödel', 'Flamingo', 'Pinguin', 'Kaktus', 'Brokkoli',
   ],
   f: [
-    'Tomate', 'Gurke', 'Giraffe', 'Kartoffel', 'Banane', 'Ente', 'Socke', 'Waffel', 'Brezel', 'Qualle',
-    'Schnecke', 'Wurst', 'Zahnbürste', 'Ananas', 'Kokosnuss', 'Möhre', 'Avocado', 'Gießkanne', 'Badewanne', 'Mikrowelle',
-    'Teekanne', 'Erdbeere', 'Schildkröte', 'Nudel', 'Kuh', 'Eule', 'Mütze', 'Zitrone', 'Melone', 'Pflaume',
-    'Rakete', 'Hummel', 'Ziege', 'Robbe', 'Krabbe', 'Kröte', 'Pizza', 'Bratwurst', 'Lampe', 'Gabel',
-    'Taschenlampe', 'Gans', 'Katze', 'Maus', 'Rübe', 'Zwiebel', 'Laterne',
+    'Klobürste', 'Leberwurst', 'Teewurst', 'Presswurst', 'Currywurst', 'Frikadelle', 'Schwiegermutter', 'Seegurke', 'Nacktschnecke', 'Kakerlake',
+    'Zecke', 'Warze', 'Unterhose', 'Achselhöhle', 'Kloschüssel', 'Pfandflasche', 'Heizdecke', 'Kaffeefahrt', 'Schweinshaxe', 'Bratensoße',
+    'Moorleiche', 'Blindschleiche', 'Wühlmaus', 'Ratte', 'Taube', 'Qualle', 'Ziege', 'Kröte', 'Dauerwelle', 'Zahnspange',
+    'Jogginghose', 'Fußmatte', 'Steuererklärung', 'Dönerbude', 'Discokugel', 'Lavalampe', 'Gießkanne', 'Badewanne', 'Mikrowelle', 'Gurke',
+    'Kartoffel', 'Banane', 'Socke', 'Giraffe', 'Avocado', 'Gans',
   ],
   n: [
-    'Telefon', 'Nilpferd', 'Erdmännchen', 'Faultier', 'Krokodil', 'Schnitzel', 'Sofa', 'Kamel', 'Alpaka', 'Wiesel',
-    'Gürteltier', 'Croissant', 'Eichhörnchen', 'Spiegelei', 'Bügeleisen', 'Waffeleisen', 'Murmeltier', 'Lama', 'Gummibärchen', 'Kissen',
-    'Trampolin', 'Raumschiff', 'Einhorn', 'Schaf', 'Känguru', 'Brötchen', 'Fahrrad', 'Würstchen', 'Walross', 'Schwein',
-    'Huhn', 'Pony', 'Zebra', 'Gespenst', 'Marzipan', 'Sandwich', 'Omelett', 'Nashorn', 'Seepferdchen', 'Opossum',
-    'Frettchen',
+    'Furzkissen', 'Mettbrötchen', 'Wurstbrot', 'Fischstäbchen', 'Hackfleisch', 'Eisbein', 'Kotelett', 'Schnitzel', 'Gebiss', 'Toupet',
+    'Hörgerät', 'Hühnerauge', 'Achselhaar', 'Nasenhaar', 'Ohrläppchen', 'Ordnungsamt', 'Finanzamt', 'Dixiklo', 'Wasserbett', 'Sparschwein',
+    'Kuscheltier', 'Sumpfmonster', 'Gespenst', 'Alien', 'Schnabeltier', 'Faultier', 'Stinktier', 'Nilpferd', 'Erdmännchen', 'Frettchen',
+    'Opossum', 'Alpaka', 'Walross', 'Schwein', 'Ferkel', 'Huhn', 'Einhorn', 'Gummibärchen', 'Spiegelei', 'Bügeleisen',
+    'Raclette', 'Fondue', 'Krokodil', 'Meerschweinchen',
   ],
 };
 
