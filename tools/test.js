@@ -4,8 +4,7 @@ import { CONFIG } from '../config.js';
 import { spotifyAuth, redirectUri } from '../src/music/spotify-auth.js';
 import { SpotifyMusic } from '../src/music/spotify-music.js';
 import { getMe } from '../src/music/spotify-api.js';
-import { peerOptions } from '../src/net/peer-options.js';
-import { watchIce } from '../src/net/peer-guest.js';
+import { RelayPeer } from '../src/net/relay-peer.js';
 
 const DEFAULT_TRACK = '4uLU6hMCjMI75M1A2tKUQC';
 const music = new SpotifyMusic();
@@ -89,61 +88,38 @@ async function netTest() {
   out.net = ['läuft …'];
   renderNet();
   const lines = [];
-  // a) Vermittlungsdienst
-  await new Promise((resolve) => {
-    const p = new window.Peer({ debug: 0, ...peerOptions() });
-    const done = (msg) => {
-      lines.push(msg);
-      p.destroy();
-      resolve();
-    };
-    p.on('open', () => done('✓ Vermittlungsdienst (PeerJS) erreichbar'));
-    p.on('error', (e) => done(`✗ Vermittlungsdienst nicht erreichbar (${e.type})`));
-    setTimeout(() => done('✗ Vermittlungsdienst antwortet nicht'), 10000);
-  });
-  // b) Netzwerk-Kandidaten (STUN/TURN)
-  const opts = peerOptions();
-  const iceServers = opts.config?.iceServers || [
-    { urls: 'stun:stun.l.google.com:19302' },
-    { urls: ['turn:eu-0.turn.peerjs.com:3478', 'turn:us-0.turn.peerjs.com:3478'], username: 'peerjs', credential: 'peerjsp' },
-  ];
-  const pc = new RTCPeerConnection({ iceServers });
-  pc.createDataChannel('t');
-  const types = new Set();
-  pc.onicecandidate = (e) => e.candidate && types.add(e.candidate.type || (e.candidate.candidate.match(/typ (\w+)/) || [])[1]);
-  await pc.setLocalDescription(await pc.createOffer());
-  await new Promise((r) => setTimeout(r, 6000));
-  pc.close();
-  lines.push(types.has('srflx') ? '✓ Öffentliche Adresse ermittelt (STUN)' : '✗ Keine öffentliche Adresse (STUN blockiert?)');
-  lines.push(
-    types.has('relay')
-      ? '✓ Weiterleitungs-Server erreichbar (TURN) – Verbindungen klappen auch in schwierigen Netzen'
-      : '– Kein Weiterleitungs-Server erreichbar (TURN). Meist trotzdem kein Problem; bei Verbindungsproblemen siehe Anleitung.',
-  );
-  // c) Selbsttest: zwei Teilnehmer im selben Browser, gleicher Code wie im Spiel
-  lines.push(await loopTest());
+  // Jeden Verbindungsdienst einzeln prüfen: zwei Teilnehmer in diesem Browser,
+  // gleicher Code wie im Spiel, Nachricht hin und zurück.
+  for (const url of CONFIG.relays) lines.push(await loopTest(url));
+  const ok = lines.filter((l) => l.startsWith('✓')).length;
+  lines.push(ok ? 'Ergebnis: Mitspielen klappt von diesem Gerät und Netz aus (ein erreichbarer Dienst genügt).' : 'Ergebnis: Kein Verbindungsdienst erreichbar. Blockiert ein Werbeblocker, eine Firewall oder das Netz WebSocket-Verbindungen?');
   out.net = lines;
   renderNet();
 }
 
-async function loopTest() {
-  const opts = { debug: 0, ...peerOptions() };
-  const a = new window.Peer(opts);
-  const b = new window.Peer(opts);
+async function loopTest(url) {
+  const name = new URL(url).hostname;
+  const opts = { relays: [url], secret: 'funktionstest' };
+  const a = new RelayPeer(opts);
+  const b = new RelayPeer(opts);
   const opened = (p) => new Promise((res) => {
     p.on('open', () => res(true));
     p.on('error', () => res(false));
     setTimeout(() => res(false), 10000);
   });
   try {
-    if (!(await opened(a)) || !(await opened(b))) return '✗ Selbsttest: Vermittlungsdienst antwortet nicht';
+    const t0 = performance.now();
+    if (!(await opened(a)) || !(await opened(b))) return `✗ ${name}: nicht erreichbar`;
     a.on('connection', (conn) => conn.on('data', (d) => conn.send('pong:' + d)));
-    const c = b.connect(a.id, { reliable: true, serialization: 'raw' });
-    const diag = watchIce(c, 'Selbsttest');
+    const c = b.connect(a.id);
     return await new Promise((res) => {
-      c.on('open', () => c.send('ping'));
-      c.on('data', (d) => res(d === 'pong:ping' ? '✓ Selbsttest: Direktverbindung im selben Browser klappt (Spiel-Code in Ordnung)' : '✗ Selbsttest: falsche Antwort'));
-      setTimeout(() => res(`✗ Selbsttest: keine Direktverbindung (Status: ${diag.ice}, Adressen: ${[...diag.local].join(', ') || 'keine'})`), 15000);
+      let sent = 0;
+      c.on('open', () => {
+        sent = performance.now();
+        c.send('ping');
+      });
+      c.on('data', (d) => res(d === 'pong:ping' ? `✓ ${name}: erreichbar, Nachricht hin und zurück in ${Math.round(performance.now() - sent)} ms (Aufbau ${Math.round(sent - t0)} ms)` : `✗ ${name}: falsche Antwort`));
+      setTimeout(() => res(`✗ ${name}: verbunden, aber keine Antwort`), 10000);
     });
   } finally {
     setTimeout(() => (a.destroy(), b.destroy()), 500);

@@ -25,7 +25,7 @@ export class GuestSession extends Emitter {
 
     this.transport = new PeerGuest({
       roomId: invite.roomId,
-      peerOptions: peerOptions(),
+      peerOptions: peerOptions(invite.key),
       makeHello: () => ({
         t: 'hello',
         v: PROTOCOL_VERSION,

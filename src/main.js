@@ -5,6 +5,7 @@ import { spotifyAuth } from './music/spotify-auth.js';
 import { loadSongs } from './app/songs.js';
 import { createApp } from './app/app.js';
 import { mountUI, renderMessage } from './ui/ui.js';
+import { installRelayPeer } from './net/relay-peer.js';
 
 async function boot() {
   const root = document.getElementById('app');
@@ -40,6 +41,7 @@ async function boot() {
   const query = new URLSearchParams(window.location.search);
   const testMode = CONFIG.testMode || query.has('test');
   if (query.has('fakenet')) (await import('./dev/fake-peer.js')).installFakePeer();
+  else installRelayPeer();
   const app = createApp({ db, testMode });
   mountUI(root, app);
   if (testMode || query.has('fakenet')) window.radino = app; // nur zum Debuggen

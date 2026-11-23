@@ -132,6 +132,6 @@ python3 -m http.server 8080 --bind 127.0.0.1
 ```
 
 - `http://127.0.0.1:8080/?test&fakenet` öffnen, ein Spiel erstellen und im Modus „Testmodus ohne Musik“ spielen.
-  Den Einladungslink in weiteren **Tabs desselben Browsers** öffnen. `fakenet` ersetzt WebRTC durch eine Verbindung zwischen den Tabs.
+  Den Einladungslink in weiteren **Tabs desselben Browsers** öffnen. `fakenet` ersetzt die Verbindungsdienste durch eine Verbindung zwischen den Tabs (ganz ohne Internet).
 - Mit `?test` oder `?fakenet` liegt die App zum Ausprobieren unter `window.radino` (z. B. `radino.getState()`).
 - Tabs im Hintergrund zeichnen erst neu, wenn man sie wieder ansieht, weil `requestAnimationFrame` dort pausiert. Das ist gewollt.

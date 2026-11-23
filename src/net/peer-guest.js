@@ -8,22 +8,6 @@ import { parseHostMessage, hostPeerId } from './protocol.js';
 const HEARTBEAT = 2000;
 const DEAD_AFTER = 9000;
 
-/** Beobachtet den Verbindungsaufbau (ICE) einer PeerJS-Verbindung für die Fehlersuche. */
-export function watchIce(conn, label) {
-  const diag = { ice: 'new', local: new Set() };
-  const pc = conn.peerConnection;
-  if (!pc) return diag;
-  pc.addEventListener('icecandidate', (e) => {
-    const m = e.candidate && /typ (\w+)/.exec(e.candidate.candidate);
-    if (m) diag.local.add(m[1]);
-  });
-  pc.addEventListener('iceconnectionstatechange', () => {
-    diag.ice = pc.iceConnectionState;
-    console.info(`RaDino ${label}: Verbindung ${diag.ice} (eigene Adressen: ${[...diag.local].join(', ') || 'keine'})`);
-  });
-  return diag;
-}
-
 export class PeerGuest extends Emitter {
   constructor({ roomId, peerOptions, makeHello }) {
     super();
@@ -47,20 +31,20 @@ export class PeerGuest extends Emitter {
     this.#setStatus('connecting');
     const Peer = window.Peer;
     if (!Peer) {
-      this.#setStatus('error', 'PeerJS konnte nicht geladen werden.');
+      this.#setStatus('error', 'Verbindungsmodul konnte nicht geladen werden.');
       return;
     }
-    const peer = new Peer({ debug: 1, ...this.peerOptions });
+    const peer = new Peer(this.peerOptions);
     this.peer = peer;
     this.peerOpened = false;
     peer.on('open', () => {
-      // 'open' kommt nach einem reconnect() erneut – dann besteht die Spielverbindung meist noch.
+      // 'open' kommt nach einem reconnect() erneut.
       const first = !this.peerOpened;
       this.peerOpened = true;
       if (first || !this.conn?.open) this.#connectHost();
     });
     peer.on('disconnected', () => {
-      // Nur die Vermittlung ist weg; die direkte Verbindung zum Host läuft weiter.
+      // Verbindungsdienst weg: neu verbinden ('open' baut dann die Verbindung zum Host neu auf).
       if (!this.stopped && !peer.destroyed) setTimeout(() => !peer.destroyed && peer.disconnected && peer.reconnect(), 3000);
     });
     peer.on('error', (err) => {
@@ -70,13 +54,10 @@ export class PeerGuest extends Emitter {
         this.#setStatus('host-missing', 'Der Host ist gerade nicht erreichbar. Neuer Versuch läuft …');
         this.#scheduleRetry();
       } else if (['network', 'server-error', 'socket-error', 'socket-closed'].includes(type)) {
-        if (this.peerOpened && this.conn?.open) return; // Spiel läuft direkt weiter; 'disconnected' kümmert sich
-        this.#setStatus('reconnecting', 'Vermittlungsdienst nicht erreichbar, neuer Versuch …');
+        this.#setStatus('reconnecting', 'Verbindungsdienst nicht erreichbar, neuer Versuch …');
         this.#restartPeer();
-      } else if (type === 'browser-incompatible') {
-        this.#setStatus('error', 'Dieser Browser unterstützt kein WebRTC.');
       } else {
-        console.warn('PeerJS-Fehler (Gast)', type, err);
+        console.warn('Verbindungsfehler (Gast)', type, err);
         this.#scheduleRetry();
       }
     });
@@ -115,29 +96,9 @@ export class PeerGuest extends Emitter {
       /* egal */
     }
     this.welcomed = false;
-    const conn = this.peer.connect(hostPeerId(this.roomId), { reliable: true, serialization: 'raw' });
+    const conn = this.peer.connect(hostPeerId(this.roomId));
     this.conn = conn;
-    const diag = watchIce(conn, 'Gast');
-    const openTimer = setTimeout(() => {
-      if (this.conn === conn && !conn.open) {
-        try {
-          conn.close();
-        } catch {
-          /* egal */
-        }
-        const cands = [...diag.local].join(', ') || 'keine';
-        const msg =
-          diag.ice === 'new'
-            ? 'Der Host antwortet nicht. Neuer Versuch läuft …'
-            : `Host gefunden, aber keine Direktverbindung möglich (Status: ${diag.ice}, eigene Adressen: ${cands}). ` +
-              'Meist blockiert ein Browser-Schutz (z. B. Brave Shields) oder das Netzwerk die Verbindung – siehe Anleitung „Host nicht erreichbar“. Neuer Versuch läuft …';
-        console.warn('RaDino: Direktverbindung gescheitert', { ice: diag.ice, candidates: cands });
-        this.#setStatus('host-missing', msg);
-        this.#scheduleRetry();
-      }
-    }, 15000);
     conn.on('open', () => {
-      clearTimeout(openTimer);
       this.lastHeard = now();
       this.#send(this.makeHello());
     });
@@ -165,7 +126,6 @@ export class PeerGuest extends Emitter {
       this.emit('message', msg);
     });
     conn.on('close', () => {
-      clearTimeout(openTimer);
       if (this.conn !== conn || this.stopped) return;
       this.#setStatus('reconnecting', 'Verbindung zum Host verloren. Verbinde neu …');
       this.#scheduleRetry();

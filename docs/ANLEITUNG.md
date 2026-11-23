@@ -84,7 +84,7 @@ So trägst du jemanden ein:
 2. Klicke auf **„Bei Spotify anmelden“**. Es öffnet sich ein kleines Fenster. Melde dich dort an und bestätige.
 3. Bei *Player* sollte nach ein paar Sekunden **„ready“** stehen.
 4. Klicke auf **„Laden + abspielen“**. Ein Song sollte zu hören sein, ohne dass Titel oder Interpret angezeigt werden. Mit **„Stopp“** hältst du ihn an.
-5. Klicke unten auf **„Test starten“**. Es sollten mindestens zwei grüne Haken erscheinen.
+5. Klicke unten auf **„Test starten“**. Es sollte mindestens ein grüner Haken erscheinen (ein erreichbarer Verbindungsdienst genügt).
 
 Klappt etwas nicht, schau in den Abschnitt [Probleme und Lösungen](#probleme-und-lösungen).
 
@@ -140,10 +140,10 @@ Spotify erlaubt das Abspielen im Browser nur mit Premium. Im Modus „Nur der Ho
 Der Browser blockiert Popups. Erlaube Popups für die Seite, im Symbol rechts in der Adressleiste. Ohne Popup leitet die Seite stattdessen kurz zu Spotify weiter und kommt danach zurück.
 
 **„Host nicht erreichbar“ / Mitspieler kommt nicht rein**
-- **Brave:** Die Shields (Löwen-Symbol in der Adressleiste) schränken die Direktverbindung ein. Für `iterate-lemon.github.io` die Shields ausschalten, und zwar bei Host und Gästen. Danach die Seite neu laden.
-- Ist der Tab des Hosts noch offen?
+- Ist der Tab des Hosts noch offen, und steht dort oben „Raum: verbunden“?
 - Stimmt der Link? Er muss vollständig sein, mit allem nach dem `#`.
-- Öffnet der Betroffene `tools/test.html` und startet den Verbindungstest. Sehr strenge Netze (Firma, Uni, manche Mobilfunknetze) blockieren direkte Verbindungen. Dann hilft ein „TURN-Server“: Bei einem TURN-Anbieter mit kostenlosem Kontingent anmelden und die Zugangsdaten in `config.js` bei `iceServers` eintragen. Ein Beispiel steht in der Datei.
+- Öffnet der Betroffene `tools/test.html` und startet den Verbindungstest. Er zeigt, ob die Verbindungsdienste von diesem Gerät aus erreichbar sind. Ein erreichbarer Dienst genügt. Ist keiner erreichbar, blockiert etwas auf dem Gerät oder im Netz die Verbindung (Werbeblocker, Firewall in Firma oder Uni). Dann hilft meist ein anderes Netz, z. B. der Handy-Hotspot.
+- Besondere Browser-Einstellungen sind nicht nötig, auch nicht in Brave.
 
 **Ein Song lässt sich nicht abspielen**
 Manche Songs sind in Deutschland nicht oder nicht mehr verfügbar. Das Spiel überspringt sie automatisch und merkt sie sich. Sonst hilft der Knopf **„Song überspringen“**.
@@ -169,5 +169,5 @@ Ein Spotify-Konto kann nur an einer Stelle gleichzeitig abspielen. Während des 
 - **Wer den Einladungslink hat, kann beitreten.** Teile ihn also nur mit Freunden. Für ein neues Spiel mit anderen Leuten erstellst du einfach einen neuen Raum, dann gibt es einen neuen Link.
 - **Spotify-Anmeldungen bleiben im jeweiligen Browser.** Sie werden nie an Mitspieler oder irgendeinen Server geschickt.
 - **Am besten einen eigenen GitHub-Account nur für RaDino nutzen**, oder zumindest keine fremden Webseiten auf demselben Account veröffentlichen. Alle Seiten unter `DEINNAME.github.io` teilen sich den Browserspeicher.
-- **Kosten:** keine. GitHub Pages, der PeerJS-Vermittlungsdienst und die Spotify-Developer-App sind kostenlos. Nur Spotify Premium kostet wie gewohnt.
+- **Kosten:** keine. GitHub Pages, die Verbindungsdienste und die Spotify-Developer-App sind kostenlos. Nur Spotify Premium kostet wie gewohnt.
 - Ändert Spotify erneut seine Regeln, betrifft das meist nur Schritt 2 oder 3. Die aktuelle Doku findest du auf developer.spotify.com.

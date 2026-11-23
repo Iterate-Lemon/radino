@@ -1,11 +1,6 @@
-// PeerJS-Optionen aus config.js (Vermittlungsdienst und optionale STUN/TURN-Server).
+// Verbindungs-Optionen aus config.js: die Verbindungsdienste und der Schlüssel des Raums.
 import { CONFIG } from '../../config.js';
 
-export function peerOptions() {
-  const o = { ...CONFIG.peer };
-  if (Array.isArray(CONFIG.iceServers) && CONFIG.iceServers.length) {
-    // Eigene Server zusätzlich zu einem öffentlichen STUN-Server
-    o.config = { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }, ...CONFIG.iceServers] };
-  }
-  return o;
+export function peerOptions(secret) {
+  return { relays: CONFIG.relays, secret };
 }

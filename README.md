@@ -4,7 +4,7 @@ Ein Musik-Zeitleisten-Spiel für den Browser, das man online mit Freunden spielt
 Ein Song läuft verdeckt, und wer dran ist, ordnet ihn in seine Zeitleiste ein: davor, danach oder dazwischen.
 Danach wird das Jahr aufgedeckt. Wer zuerst 10 Karten in seiner Zeitleiste hat, gewinnt.
 
-- **Kein Server, keine laufenden Kosten:** eine statische Seite (z. B. GitHub Pages). Die Mitspieler verbinden sich per WebRTC direkt mit dem Browser des Hosts.
+- **Kein Server, keine laufenden Kosten:** eine statische Seite (z. B. GitHub Pages). Der Browser des Hosts leitet das Spiel. Die Mitspieler tauschen ihre verschlüsselten Spielnachrichten mit ihm über kostenlose öffentliche Verbindungsdienste aus.
 - **Musik über Spotify** (Web Playback SDK), in zwei Modi:
   - *Nur der Host spielt ab*: Die anderen hören über einen Discord-Stream mit, die Spielerzahl ist beliebig.
   - *Jeder hört selbst*: Jeder nutzt sein eigenes Premium-Konto, die Wiedergabe läuft synchron. Höchstens 5 Konten.
@@ -16,7 +16,7 @@ Danach wird das Jahr aufgedeckt. Wer zuerst 10 Karten in seiner Zeitleiste hat, 
 |---|---|
 | `index.html`, `config.js` | Spielseite und Einstellungen (Spotify-Client-ID) |
 | `src/core/` | Spielregeln und Spielzustand (reine Funktionen) |
-| `src/net/` | Verbindungen (PeerJS) und Nachrichtenprotokoll |
+| `src/net/` | Verbindungen (verschlüsselt über MQTT/WebSocket) und Nachrichtenprotokoll |
 | `src/music/` | Spotify-Login (PKCE), Spotify-Player, Test-Player |
 | `src/app/` | Host- und Gast-Sitzung, Synchronisierung, Anzeige-Modell |
 | `src/ui/` | schlichte Oberfläche, austauschbar ([docs/UI-SCHNITTSTELLE.md](docs/UI-SCHNITTSTELLE.md)) |
@@ -46,6 +46,5 @@ Technische Details, Entscheidungen und Grenzen stehen in [docs/TECHNIK.md](docs/
 
 - Die Songdaten (Titel, Interpret, Jahr, ISRC, YouTube-ID) stammen aus
   [andygruber/songseeker-hitster-playlists](https://github.com/andygruber/songseeker-hitster-playlists) (MIT-Lizenz, © 2024 Andreas Gruber).
-- [PeerJS](https://peerjs.com) 1.5.5 (MIT-Lizenz), siehe `vendor/peerjs-LICENSE.txt`.
 - Privates, nicht-kommerzielles Hobbyprojekt. Es steht in keiner Verbindung zu Spotify oder zu Herstellern von Musikspielen.
   Bitte die Hinweise zu den Spotify-Richtlinien in `docs/TECHNIK.md` beachten.

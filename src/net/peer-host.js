@@ -1,9 +1,8 @@
-// Host-Seite der Verbindung: nimmt WebRTC-Verbindungen der Gäste an (über PeerJS).
+// Host-Seite der Verbindung: nimmt Verbindungen der Gäste an (über relay-peer.js).
 // Kennt keine Spielregeln, nur Verbindungen, Handshake, Herzschlag und Limits.
 
 import { Emitter, now } from '../lib/util.js';
 import { parseGuestMessage, hostPeerId } from './protocol.js';
-import { watchIce } from './peer-guest.js';
 
 const HELLO_TIMEOUT = 8000;
 const DEAD_AFTER = 10000;
@@ -32,10 +31,10 @@ export class PeerHost extends Emitter {
     this.#setStatus('connecting');
     const Peer = window.Peer;
     if (!Peer) {
-      this.#setStatus('error', 'PeerJS konnte nicht geladen werden.');
+      this.#setStatus('error', 'Verbindungsmodul konnte nicht geladen werden.');
       return;
     }
-    const peer = new Peer(hostPeerId(this.roomId), { debug: 1, ...this.peerOptions });
+    const peer = new Peer(hostPeerId(this.roomId), this.peerOptions);
     this.peer = peer;
     this.opened = false;
     this.reconnectAttempt = 0;
@@ -46,28 +45,25 @@ export class PeerHost extends Emitter {
     });
     peer.on('connection', (conn) => this.#onConnection(conn));
     peer.on('disconnected', () => {
-      // Verbindung zum Vermittlungsdienst weg; bestehende WebRTC-Verbindungen laufen weiter.
+      // Verbindungsdienst weg: neu verbinden, die Gäste melden sich danach von selbst wieder.
       if (this.stopped || peer.destroyed) return;
-      this.#setStatus('retrying', 'Vermittlungsdienst kurz weg – das laufende Spiel ist nicht betroffen.');
+      this.#setStatus('retrying', 'Verbindungsdienst kurz weg, verbinde neu …');
       this.#reconnectSoon(peer);
     });
     peer.on('error', (err) => {
       const type = err?.type;
       if (this.stopped) return;
       if (type === 'unavailable-id') {
-        // Nach einem Neuladen hält der Vermittlungsdienst die alte ID noch kurz fest.
-        this.#setStatus('retrying', 'Raum wird wieder geöffnet …');
+        // Der Raum ist noch in einem anderen Tab dieses Browsers offen.
+        this.#setStatus('retrying', 'Dieser Raum ist noch in einem anderen Tab offen. Bitte dort schließen …');
         this.#restart(4000);
       } else if (['network', 'server-error', 'socket-error', 'socket-closed'].includes(type)) {
-        this.#setStatus('retrying', 'Vermittlungsdienst nicht erreichbar, neuer Versuch …');
-        // War der Raum schon offen, nur die Vermittlung neu verbinden (gleiche ID,
-        // bestehende Spieler-Verbindungen bleiben). Sonst ganz neu starten.
+        this.#setStatus('retrying', 'Verbindungsdienst nicht erreichbar, neuer Versuch …');
+        // War der Raum schon offen, nur neu verbinden. Sonst ganz neu starten.
         if (this.opened && !peer.destroyed) this.#reconnectSoon(peer);
         else this.#restart(5000);
-      } else if (type === 'browser-incompatible') {
-        this.#setStatus('error', 'Dieser Browser unterstützt kein WebRTC.');
       } else {
-        console.warn('PeerJS-Fehler (Host)', type, err);
+        console.warn('Verbindungsfehler (Host)', type, err);
       }
     });
   }
@@ -105,12 +101,10 @@ export class PeerHost extends Emitter {
   }
 
   #onConnection(conn) {
-    // Nur das eigene Textformat zulassen (kein Binärformat mit Puffer vor dem Handshake).
-    if (conn.serialization !== 'raw' || this.clients.size >= MAX_CONNECTIONS) {
+    if (this.clients.size >= MAX_CONNECTIONS) {
       conn.close();
       return;
     }
-    watchIce(conn, 'Host');
     const client = { conn, pid: null, lastSeen: now(), rate: { start: now(), count: 0 } };
     this.clients.add(client);
     client.helloTimer = setTimeout(() => {

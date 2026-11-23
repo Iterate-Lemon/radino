@@ -6,12 +6,11 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta
       http-equiv="Content-Security-Policy"
-      content="default-src 'self'; script-src 'self' https://sdk.scdn.co; frame-src https://sdk.scdn.co; connect-src 'self' https://accounts.spotify.com https://api.spotify.com https://0.peerjs.com wss://0.peerjs.com; img-src 'self' data:; style-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'"
+      content="default-src 'self'; script-src 'self' https://sdk.scdn.co; frame-src https://sdk.scdn.co; connect-src 'self' https://accounts.spotify.com https://api.spotify.com wss://broker.hivemq.com:8884 wss://broker.emqx.io:8084; img-src 'self' data:; style-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'"
     />
     <meta name="referrer" content="no-referrer" />
     <title>RaDino – Funktionstest</title>
     <link rel="stylesheet" href="../src/ui/ui.css" />
-    <script src="../vendor/peerjs-1.5.5.min.js" integrity="sha384-buOtRa++PJhMHN33SmVMNp+omDHiEghXCU68Mf0w/SteKD/vr0iTmENyFYQvJCKs"></script>
     <script type="module" src="test.js"></script>
   </head>
   <body>

@@ -16,14 +16,12 @@ export const CONFIG = {
   // Land für die Songsuche im Abgleich-Werkzeug
   market: 'DE',
 
-  // Vermittlungsdienst für den Verbindungsaufbau (kostenloser PeerJS-Dienst).
-  // Wer das ändert, muss auch die Content-Security-Policy in index.html anpassen.
-  peer: { host: '0.peerjs.com', port: 443, path: '/', secure: true },
-
-  // Optional: eigene STUN/TURN-Server. Nur nötig, wenn sich einzelne Mitspieler
-  // trotz allem nicht verbinden können (siehe Anleitung, "Probleme"). Leer = Standard.
-  // Beispiel: [{ urls: 'turn:turn.example.com:3478', username: 'name', credential: 'passwort' }]
-  iceServers: [],
+  // Verbindungsdienste (öffentliche MQTT-Broker per WebSocket), über die Host und
+  // Mitspieler ihre verschlüsselten Spielnachrichten austauschen. Alle werden
+  // gleichzeitig genutzt; solange einer erreichbar ist, läuft das Spiel.
+  // Wer das ändert, muss auch die Content-Security-Policy in index.html und
+  // tools/test.html anpassen (connect-src).
+  relays: ['wss://broker.emqx.io:8084/mqtt', 'wss://broker.hivemq.com:8884/mqtt'],
 
   // Testmodus "ohne Musik" anbieten (sonst nur mit ?test in der Adresse)
   testMode: false,

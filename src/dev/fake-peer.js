@@ -1,5 +1,5 @@
-// Nur für Entwicklung/Tests: ahmt die genutzte PeerJS-Schnittstelle nach, aber
-// über BroadcastChannel zwischen Tabs DESSELBEN Browsers (kein WebRTC, kein Server).
+// Nur für Entwicklung/Tests: gleiche Schnittstelle wie src/net/relay-peer.js, aber
+// über BroadcastChannel zwischen Tabs DESSELBEN Browsers (ganz ohne Netzwerk).
 // Aktivieren mit ?fakenet in der Adresse. Nützlich, um mehrere Spieler in
 // mehreren Tabs zu simulieren (z. B. für Oberflächen-Arbeit).
 

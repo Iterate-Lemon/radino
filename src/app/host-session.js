@@ -76,7 +76,7 @@ export class HostSession extends Emitter {
       this.autoSkips = 0;
     });
 
-    this.transport = new PeerHost({ roomId: this.roomId, peerOptions: peerOptions() });
+    this.transport = new PeerHost({ roomId: this.roomId, peerOptions: peerOptions(this.joinKey) });
     this.transport.on('status', () => this.#changed());
     this.transport.on('hello', (client, msg) => this.#onHello(client, msg));
     this.transport.on('message', (pid, msg) => this.#onMessage(pid, msg));

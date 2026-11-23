@@ -1,4 +1,4 @@
-// Nachrichtenformat zwischen Host und Gästen (JSON-Strings über WebRTC).
+// Nachrichtenformat zwischen Host und Gästen (JSON-Strings, übertragen von relay-peer.js).
 // Alles, was von außen kommt, wird hier streng geprüft. Ungültiges wird verworfen.
 
 export const PROTOCOL_VERSION = 1;
