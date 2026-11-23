@@ -8,7 +8,7 @@
 // Sicherheit: Texte werden ausschließlich als Textknoten eingefügt (kein innerHTML).
 
 import { h, erneuere } from './dom.js';
-import { pixeltext, pixelzeile, kannPixel, dino, symbol } from './pixel.js';
+import { pixeltext, pixelzeile, kannPixel, dino, symbol, marke } from './pixel.js';
 import { Skala, lueckenText } from './skala.js';
 
 const MODE_TEXT = {
@@ -49,6 +49,7 @@ const FAIL_REASON = {
 };
 const AUDIO_STATE = { idle: 'bereit', preparing: 'lädt …', ready: 'bereit', playing: 'läuft', stopped: 'angehalten' };
 const START_OFFSETS = [0, 30, 60];
+const MARKEN_PLAETZE = 5; // so viele Marken kann ein Spieler höchstens haben
 const SONGDATEN_URL = 'https://github.com/andygruber/songseeker-hitster-playlists';
 
 // ── Bausteine ────────────────────────────────────────────────────────────────
@@ -61,11 +62,26 @@ function pixelLabel(label) {
   s.setAttribute('aria-hidden', 'true');
   return s;
 }
-const knopf = (label, onclick, cls = '', attrs = {}) => (cls.includes('haupt')
+// 'haupt' = die eine Hauptaktion (orange), 'neben' = Nebenaktion mit leichtem orangen Schimmer
+const knopf = (label, onclick, cls = '', attrs = {}) => (cls.includes('haupt') || cls.includes('neben')
   ? h('button', { type: 'button', class: `knopf ${cls}`.trim(), onclick, 'aria-label': label, ...attrs }, pixelLabel(label))
   : h('button', { type: 'button', class: `knopf ${cls}`.trim(), onclick, ...attrs }, label));
 const textknopf = (label, onclick, attrs = {}) => h('button', { type: 'button', class: 'textknopf', onclick, ...attrs }, label);
 const etikett = (text) => h('h2', { class: 'etikett' }, pixeltext(text));
+
+// Regel „Marken“: der Markenstand als fünf Plätze, die belegten sind gefüllt.
+// frisch = die zuletzt dazugekommene Marke blinkt kurz auf.
+function markenReihe(n, frisch = false) {
+  return h('span', { class: 'markenstand', role: 'img', 'aria-label': n === 1 ? '1 Marke' : `${n} Marken`, title: n === 1 ? '1 Marke' : `${n} Marken` },
+    Array.from({ length: MARKEN_PLAETZE }, (_, i) => {
+      const s = symbol(i < n ? 'marke' : 'platz');
+      if (i >= n) s.classList.add('leer');
+      else if (frisch && i === n - 1) s.classList.add('frisch');
+      return s;
+    }));
+}
+// Text mit einer Marke davor
+const mitMarke = (tag, attrs, ...inhalt) => h(tag, { ...attrs, class: `${attrs.class || ''} mit-marke`.trim() }, marke(), h('span', {}, inhalt));
 
 function wortmarke() {
   const ra = pixeltext('RA', 'ra');
@@ -163,7 +179,7 @@ function baueKopf(app) {
     update(state) {
       const r = state.room;
       const g = r.game;
-      const laeuft = g && (g.phase === 'turn' || g.phase === 'reveal');
+      const laeuft = g && (g.phase === 'turn' || g.phase === 'challenge' || g.phase === 'reveal');
       lage.textContent = laeuft
         ? `Karte ${g.round}  ·  noch ${g.deckLeft.toLocaleString('de-DE')} im Stapel  ·  Ziel: ${g.settings.target} Karten`
         : '';
@@ -417,12 +433,14 @@ function lobbyAnsicht(app) {
           type: 'button', 'aria-pressed': String(s.startAt === v), disabled: !edit, 'data-fk': `ab-${v}`,
           onclick: () => a.updateSettings({ startAt: v }),
         }, v === 0 ? 'Songanfang' : `Sekunde ${v}`)))),
-      // Regel „Marken“ (vorläufige Bedienung, Gestaltung folgt)
-      h('div', { class: 'zeile' }, h('span', {}, 'Marken ', h('span', { class: 'leise' }, '(anzweifeln und Karten klauen)')),
-        h('div', { class: 'segmente', role: 'group', 'aria-label': 'Marken' }, [false, true].map((v) => h('button', {
-          type: 'button', 'aria-pressed': String(!!s.tokens === v), disabled: !edit, 'data-fk': `marken-${v ? 'an' : 'aus'}`,
-          onclick: () => a.updateSettings({ tokens: v }),
-        }, v ? 'An' : 'Aus')))),
+      // Regel „Marken“: ein Schiebeschalter wie an einem Radio
+      h('div', { class: 'zeile' },
+        h('span', {}, mitMarke('span', {}, 'Marken'),
+          h('span', { class: 'klein regeltext' }, 'Wer eine Marke einsetzt, zweifelt eine gelegte Karte an und bekommt sie, wenn der eigene Tipp stimmt.')),
+        h('button', {
+          type: 'button', class: 'schalter', role: 'switch', 'aria-checked': String(!!s.tokens), 'aria-label': 'Marken', disabled: !edit, 'data-fk': 'marken',
+          onclick: () => a.updateSettings({ tokens: !s.tokens }),
+        }, pixelLabel(s.tokens ? 'An' : 'Aus'), h('span', { class: 'bahn' }))),
     ]);
 
     erneuere(editionen, [state.editions, s.editions, s.mode, edit], () => [
@@ -459,7 +477,6 @@ function spielAnsicht(app) {
   const meldungen = baueMeldungen(app, { spotify: true });
   const titel = h('h1');
   const unter = h('p', { class: 'unter' });
-  const siegerDino = dino('steht', 'sieger-dino');
   const tonStatus = h('span', { class: 'ton-status' });
   const tonKnoepfe = h('span', { class: 'ton-knoepfe' });
   const regler = h('input', { type: 'range', min: 0, max: 1, step: 0.05, 'aria-label': 'Lautstärke', oninput: (e) => a.setVolume(e.target.value) });
@@ -470,27 +487,59 @@ function spielAnsicht(app) {
   const verlauf = h('ol', { class: 'verlauf' });
   const verlaufBlock = h('section', {}, etikett('Verlauf'), verlauf);
   const hostleiste = h('div', {});
-  // Regel „Marken“ (vorläufige Bedienung, Gestaltung folgt)
-  const uhr = h('span', { class: 'wo marken-uhr' });
-  const protokoll = h('ol', { class: 'marken-liste' });
-  const protokollBlock = h('details', { class: 'marken-protokoll' }, h('summary', {}, 'Marken-Protokoll'), protokoll);
+  // Regel „Marken“: die Frist zum Anzweifeln als Skalenstriche, die nacheinander erlöschen
+  const FRIST_STRICHE = 15;
+  const fristStriche = h('span', { class: 'frist-striche', 'aria-hidden': 'true' }, Array.from({ length: FRIST_STRICHE }, () => h('i')));
+  const fristZahl = h('span', { class: 'frist-zahl', 'aria-hidden': 'true' });
+  const frist = h('span', { class: 'frist', role: 'timer', hidden: true }, fristStriche, fristZahl);
+  let fristSek = null;
+  const protokoll = h('ol', { class: 'protokoll-liste' });
+  const protokollZahl = h('span', { class: 'p-zahl' });
+  const protokollBlock = h('details', { class: 'protokoll' },
+    h('summary', { 'data-fk': 'protokoll' }, h('span', { class: 'klappe', 'aria-hidden': 'true' }), h('span', { class: 'etikett' }, pixeltext('Marken-Protokoll')), protokollZahl),
+    protokoll);
+  const markenVorher = new Map(); // Markenstand je Spieler beim letzten Zeichnen
   const tick = () => {
     const ende = app.getState().room?.challenge?.endsAt;
-    uhr.textContent = ende ? `Noch ${Math.max(0, Math.ceil((ende - Date.now()) / 1000))} s` : '';
+    const sek = ende ? Math.max(0, Math.ceil((ende - Date.now()) / 1000)) : null;
+    if (sek === fristSek) return;
+    fristSek = sek;
+    frist.hidden = sek === null;
+    if (sek === null) return;
+    [...fristStriche.children].forEach((el, i) => el.classList.toggle('aus', i >= sek));
+    fristZahl.replaceChildren(pixeltext(sek));
+    frist.classList.toggle('knapp', sek <= 3);
+    frist.setAttribute('aria-label', `noch ${sek} Sekunden`);
   };
   const uhrTimer = setInterval(tick, 250);
   let tot = false;
   let gesehen = { runde: null, locked: false };
   let rollt = null; // Runde, deren Karte sich gerade umdreht
+  let endeRuhig = false; // Spielende: Siegkarte ist gelandet, die Skala rückt nach oben
+  let endeTimer = null;
+  let klaut = null; // Runde, deren Karte gerade zu einem Anzweifler wandert
+  let gelandet = null; // eben geklaute Karte (Song-ID): blinkt kurz in der Zeile des Diebs
+  let landeTimer = null;
 
+  const zweifleAn = () => {
+    const s = skala.tippWahl?.slot;
+    if (s !== null && s !== undefined) a.challenge(s);
+  };
   const skala = new Skala({
     onSelect: (i) => { a.selectSlot(i); update(app.getState()); },
     onLock: () => a.lockIn(),
+    onTipp: () => update(app.getState()),
+    onTippFest: zweifleAn,
   });
+  // Wohin eine geklaute Karte fliegt: an ihren Platz in der Zeile des Diebs.
+  const zielDerKarte = (spielerId, platz) => {
+    const mini = [...reihenPlatz.querySelectorAll('.reihe')].find((el) => el.dataset.spieler === spielerId)?.querySelector('.mini');
+    return mini?.children[platz] || mini?.lastElementChild || mini || null;
+  };
 
   const el = h('div', { class: 'seite spiel' }, kopf.el, meldungen.el,
     h('main', {},
-      h('div', { class: 'ansage' }, h('div', { class: 'links' }, titel, unter), siegerDino, ton),
+      h('div', { class: 'ansage' }, h('div', { class: 'links' }, titel, unter), ton),
       skala.el,
       aktion,
       h('div', { class: 'unten' },
@@ -516,14 +565,30 @@ function spielAnsicht(app) {
       skala.rolle(c.song).then(() => {
         if (rollt !== c.round) return;
         rollt = null;
+        // Regel „Marken“: Hat ein Anzweifler die Karte bekommen, wandert sie jetzt zu ihm.
+        if (c.wonBy) klaut = c.round;
         update(app.getState());
+        if (klaut !== c.round) return;
+        const dieb = app.getState().room?.game?.players.find((p) => p.id === c.wonBy);
+        const ich = c.wonBy === app.getState().room?.me;
+        skala.klau(ich ? 'Du klaust' : `${dieb?.name ?? '?'} klaut`, () => zielDerKarte(c.wonBy, dieb ? dieb.timeline.findIndex((s) => s.id === c.song.id) : 0)).then(() => {
+          if (klaut !== c.round) return;
+          klaut = null;
+          gelandet = c.song.id;
+          clearTimeout(landeTimer);
+          landeTimer = setTimeout(() => { gelandet = null; update(app.getState()); }, 2400);
+          update(app.getState());
+        });
       });
     }
     if (rollt !== null && (!c || c.round !== rollt)) rollt = null;
+    if (klaut !== null && (!c || c.round !== klaut || g.phase !== 'reveal' || !c.wonBy)) { klaut = null; skala.klauAbbruch(); }
     if (rollt === null) gesehen = { runde: c?.round ?? null, locked: !!c?.locked };
     const verdeckt = rollt !== null;
 
     const phase = verdeckt ? 'turn' : g.phase;
+    const mitMarken = !!g.settings.tokens;
+    const wer = (id) => (id === r.me ? 'du' : spieler(id)?.name ?? '?');
     const aktiv = spieler(c?.by ?? g.activeId);
     const ichDran = !!aktiv && aktiv.id === r.me;
     const darfWaehlen = r.can.select && !verdeckt;
@@ -537,20 +602,51 @@ function spielAnsicht(app) {
     let modus = 'ruhe';
     if (phase === 'turn' || phase === 'challenge') modus = darfWaehlen ? 'waehlen' : 'zuschauen';
     else if (phase === 'reveal') modus = 'offen';
-    else if (c?.locked && c.song && zeige && c.by === zeige.id) modus = 'offen';
+    else if (c?.locked && c.song && zeige && c.by === zeige.id && !endeRuhig) modus = 'offen';
+    // Am Spielende wird der Platz über der Skala nicht mehr gebraucht: Kurz nachdem
+    // die Siegkarte gelandet ist, rückt die Skala nach oben und der Dino feiert darauf.
+    if (phase !== 'ended') {
+      endeRuhig = false;
+      clearTimeout(endeTimer);
+      endeTimer = null;
+    } else if (modus === 'offen' && !endeTimer) {
+      endeTimer = setTimeout(() => { endeRuhig = true; update(app.getState()); }, 1400);
+    }
     skala.el.hidden = !zeige;
+    // Regel „Marken“: die Marken der Anzweifler auf der Skala, nach dem Aufdecken mit Urteil.
+    let zweifel = null;
+    if (mitMarken && c?.challenge && (modus === 'zuschauen' || modus === 'offen')) {
+      const offen = modus === 'offen';
+      // Liegt die neue Karte schon in der Zeitleiste, rücken die Lücken rechts von ihr um eins weiter.
+      const neu = offen && c.correct ? stationen.findIndex((s) => s.id === c.song.id) : -1;
+      zweifel = {
+        frei: phase === 'challenge' && r.can.challenge && r.challenge ? r.challenge.freeSlots : [],
+        tipps: c.challenge.picks.map((t) => ({
+          key: t.p,
+          slot: neu >= 0 && t.slot > neu ? t.slot + 1 : t.slot,
+          name: wer(t.p),
+          ich: t.p === r.me,
+          urteil: !offen ? null : !c.correct && c.correctSlots?.includes(t.slot) ? 'gut' : 'schlecht',
+        })),
+      };
+    }
     skala.update({
       stations: stationen,
       slot: c?.slot ?? null,
       mode: modus,
       reveal: modus === 'offen' ? c : null,
       runde: c?.round ?? null,
+      dino: phase === 'ended' && r.winners.length > 0,
+      fest: !!c?.fixed,
+      zweifel,
+      dieb: c?.wonBy ? (c.wonBy === r.me ? 'dir' : spieler(c.wonBy)?.name ?? '?') : null,
+      geklaut: !!c?.wonBy && klaut !== c.round,
     });
     const slot = modus === 'waehlen' ? skala.view.slot : c?.slot ?? null;
+    const tipp = skala.tippWahl?.slot ?? null;
 
     // Überschrift
     el.classList.toggle('ende', phase === 'ended');
-    siegerDino.style.display = phase === 'ended' && r.winners.length ? '' : 'none';
     if (phase === 'ended') {
       const namen = r.winners.map((p) => p.name);
       const nurIch = r.winners.length === 1 && r.winners[0].id === r.me;
@@ -560,12 +656,14 @@ function spielAnsicht(app) {
     } else if (phase === 'reveal') {
       const s = c.song;
       if (ichDran) setzeTitel(titel, c.correct ? 'Richtig!' : 'Leider falsch.', c.correct ? 'gut' : 'falsch');
+      else if (c.wonBy) setzeTitel(titel, c.wonBy === r.me ? 'Du klaust die Karte!' : `${spieler(c.wonBy)?.name ?? '?'} klaut die Karte!`, 'gut');
       else setzeTitel(titel, `${aktiv?.name ?? '?'} liegt ${c.correct ? 'richtig!' : 'falsch.'}`, c.correct ? 'gut' : 'falsch');
       unter.textContent = `${s.a} – ${s.t} ist von ${s.y}. ${c.correct ? 'Die Karte bleibt.' : c.wonBy ? `Die Karte geht an ${c.wonBy === r.me ? 'dich' : spieler(c.wonBy)?.name ?? '?'}.` : 'Die Karte ist weg.'}`;
     } else if (phase === 'challenge') {
       setzeTitel(titel, 'Anzweifeln?');
       unter.textContent = ichDran ? 'Deine Lücke steht fest. Die anderen dürfen jetzt anzweifeln.'
-        : `${aktiv?.name ?? '?'} hat festgelegt. Wer anzweifelt, zahlt eine Marke und wählt eine andere Lücke.`;
+        : r.can.challenge ? `${aktiv?.name ?? '?'} hat festgelegt. Liegt die Karte woanders? Dann steck eine Marke in die richtige Lücke.`
+          : `${aktiv?.name ?? '?'} hat festgelegt. Wer anzweifelt, steckt eine Marke in eine andere Lücke.`;
     } else {
       setzeTitel(titel, ichDran ? 'Du bist dran!' : `${aktiv?.name ?? '?'} ist dran.`);
       unter.textContent = ichDran ? 'Wo gehört dieser Song in deine Zeitleiste?' : `Der Song wird in die Zeitleiste von ${aktiv?.name ?? '?'} eingeordnet.`;
@@ -594,31 +692,30 @@ function spielAnsicht(app) {
     // Aktionszeile
     const tl = zeige ? stationen : [];
     const naechster = phase === 'reveal' && aktiv ? naechsterSpieler(g, aktiv.id) : null;
-    const mitMarken = !!g.settings.tokens;
-    const wer = (id) => (id === r.me ? 'du' : spieler(id)?.name ?? '?');
-    aktion.classList.toggle('marken', mitMarken);
     tick();
     erneuere(aktion, [phase, verdeckt, darfWaehlen, slot, r.can, aktiv && [aktiv.id, aktiv.name, aktiv.connected], naechster?.name, tl.map((s) => s.y), r.isHost,
-      mitMarken && [r.challenge, c?.grant, g.players.map((p) => p.name)]], () => {
+      mitMarken && [r.challenge, tipp, c?.grant, r.mePlayer?.tokens, g.players.map((p) => p.name)]], () => {
       if (verdeckt) return null;
       const teile = [];
       const rechts = [];
       if (phase === 'challenge' && r.challenge) {
+        // Regel „Marken“: Die Lücke wird auf der Skala gewählt, hier wird nur bestätigt oder gepasst.
         const ch = r.challenge;
         if (r.can.challenge) {
-          teile.push(h('span', { class: 'wo' }, 'Anzweifeln (1 Marke):'));
-          ch.freeSlots.forEach((i) => teile.push(knopf(lueckenText(tl, i), () => a.challenge(i), '', { 'data-fk': `zweifel-${i}` })));
-          teile.push(textknopf('Passen', a.passChallenge, { 'data-fk': 'passen' }));
+          teile.push(knopf('Anzweifeln', zweifleAn, 'haupt', { disabled: tipp === null, 'data-fk': 'haupt' }));
+          teile.push(h('span', { class: 'wo' }, tipp === null ? 'Klick auf eine freie Lücke. Das kostet eine Marke.' : [h('b', {}, lueckenText(tl, tipp)), ' · kostet eine Marke']));
+          teile.push(knopf('Passen', a.passChallenge, '', { 'data-fk': 'passen' }));
+        } else {
+          teile.push(h('span', { class: 'wo' },
+            ch.mine !== null ? ['Dein Tipp: ', h('b', {}, lueckenText(tl, ch.mine))]
+              : ch.passed.includes(r.me) ? 'Du passt.'
+                : ichDran ? 'Deine Lücke steht fest.'
+                  : r.mePlayer && r.mePlayer.tokens < 1 ? 'Du hast keine Marke zum Anzweifeln.' : ''));
         }
-        const stand = [
-          `${aktiv?.name ?? '?'} liegt auf: ${lueckenText(tl, ch.lockedSlot)}`,
-          ...ch.picks.map((p) => `${wer(p.p)} ${p.p === r.me ? 'zweifelst' : 'zweifelt'} an: ${lueckenText(tl, p.slot)}`),
-          ch.passed.length ? `gepasst: ${ch.passed.map(wer).join(', ')}` : null,
-          ch.pending.length ? `offen: ${ch.pending.map(wer).join(', ')}` : null,
-        ].filter(Boolean);
-        teile.push(h('span', { class: 'wo marken-stand' }, stand.join(' · ')));
-        teile.push(uhr);
-        if (r.can.endChallenge) teile.push(h('div', { class: 'rechts' }, textknopf('Jetzt aufdecken', a.endChallenge, { 'data-fk': 'aufdecken' })));
+        if (ch.pending.length) rechts.push(h('span', { class: 'wo' }, `Offen: ${ch.pending.map(wer).join(', ')}`));
+        rechts.push(frist);
+        if (r.can.endChallenge) rechts.push(textknopf('Jetzt aufdecken', a.endChallenge, { 'data-fk': 'aufdecken' }));
+        teile.push(h('div', { class: 'rechts' }, rechts));
         return teile;
       }
       if (phase === 'ended') {
@@ -636,11 +733,17 @@ function spielAnsicht(app) {
           ? (naechster ? `Als Nächstes: ${naechster.id === r.me ? 'du' : naechster.name}` : '')
           : `${aktiv?.name ?? 'Der aktive Spieler'} oder der Host macht weiter.`));
         if (mitMarken) {
-          if (c.grant) teile.push(h('span', { class: 'wo' }, `Marke für ${aktiv?.id === r.me ? 'dich' : aktiv?.name ?? '?'} von ${c.grant.by === r.me ? 'dir' : wer(c.grant.by)}.`));
-          else if (r.can.giveToken) {
-            teile.push(knopf(`Marke für ${aktiv?.name ?? '?'}`, a.giveToken, '', { 'data-fk': 'marke-geben', title: 'Titel und Interpret richtig genannt?' }));
+          // Marke für den aktiven Spieler: eine ruhige Nebenaktion am rechten Rand
+          if (c.grant) {
+            rechts.push(mitMarke('span', { class: 'wo' }, `Marke für ${aktiv?.id === r.me ? 'dich' : aktiv?.name ?? '?'} von ${c.grant.by === r.me ? 'dir' : wer(c.grant.by)}`));
+            if (r.can.revokeToken) rechts.push(textknopf('zurücknehmen', a.revokeToken, { 'data-fk': 'marke-zurueck' }));
+          } else if (r.can.giveToken) {
+            rechts.push(h('span', { class: 'wo' }, 'Titel und Interpret gewusst?'));
+            const name = aktiv?.name ?? '';
+            const label = name && name.length <= 12 && kannPixel(name) ? `Marke für ${name}` : 'Marke geben';
+            rechts.push(h('button', { type: 'button', class: 'knopf neben', onclick: a.giveToken, 'aria-label': `Marke für ${name || 'den aktiven Spieler'}`, 'data-fk': 'marke-geben' }, marke(), pixelLabel(label)));
           }
-          if (r.can.revokeToken) teile.push(textknopf('Marke zurücknehmen', a.revokeToken, { 'data-fk': 'marke-zurueck' }));
+          if (rechts.length) teile.push(h('div', { class: 'rechts' }, rechts));
         }
         return teile;
       }
@@ -651,7 +754,7 @@ function spielAnsicht(app) {
         teile.push(h('span', { class: 'wo' }, slot === null ? `${aktiv?.name ?? '?'} überlegt …` : [`${aktiv?.name ?? '?'} zeigt auf: `, h('b', {}, lueckenText(tl, slot))]));
         if (r.can.skipTurn && aktiv && !aktiv.connected) rechts.push(knopf(`${aktiv.name} überspringen (getrennt)`, a.skipTurn, '', { 'data-fk': 'skip-getrennt' }));
       }
-      if (r.can.skipSong) rechts.push(textknopf('Song überspringen (nicht verfügbar)', a.skipSong, { 'data-fk': 'skip-song' }));
+      if (r.can.skipSong) rechts.push(knopf('Song überspringen', a.skipSong, 'neben', { title: 'Falls der Song nicht verfügbar ist', 'data-fk': 'skip-song' }));
       if (rechts.length) teile.push(h('div', { class: 'rechts' }, rechts));
       return teile;
     });
@@ -660,21 +763,24 @@ function spielAnsicht(app) {
     const ziel = g.settings.target;
     const liste = phase === 'ended' ? [...g.players].sort((x, y) => y.timeline.length - x.timeline.length) : g.players;
     const markiert = phase === 'ended' ? null : aktiv?.id;
-    const zeigbar = verdeckt && (c.correct || c.wonBy) ? c.song.id : null; // noch nicht verraten
-    erneuere(reihenPlatz, [liste.map((p) => [p.id, p.name, p.connected, p.host, p.timeline.map((s) => s.y), musikMarke(g, p), mitMarken && p.tokens]), markiert, ziel, r.me, r.can.kick, zeigbar], () =>
+    const unterwegs = verdeckt || (klaut !== null && klaut === c?.round); // Karte dreht sich noch oder fliegt zum Dieb
+    const zeigbar = unterwegs && (c.correct || c.wonBy) ? c.song.id : null; // noch nicht verraten
+    erneuere(reihenPlatz, [liste.map((p) => [p.id, p.name, p.connected, p.host, p.timeline.map((s) => s.y), musikMarke(g, p), mitMarken && p.tokens]), markiert, ziel, r.me, r.can.kick, zeigbar, gelandet], () =>
       h('ul', { class: 'reihen' }, liste.map((p) => {
         const karten = zeigbar ? p.timeline.filter((s) => s.id !== zeigbar) : p.timeline;
         const m = p.connected ? musikMarke(g, p) : null;
         const striche = Math.max(karten.length, ziel <= 12 ? ziel : 0);
-        return h('li', { class: `reihe${mitMarken ? ' mit-marken' : ''}${p.id === markiert ? ' dran' : ''}${p.connected ? '' : ' getrennt'}` },
+        const mehrMarken = mitMarken && p.tokens > (markenVorher.get(p.id) ?? p.tokens);
+        if (mitMarken) markenVorher.set(p.id, p.tokens);
+        return h('li', { class: `reihe${mitMarken ? ' mit-marken' : ''}${p.id === markiert ? ' dran' : ''}${p.connected ? '' : ' getrennt'}`, 'data-spieler': p.id },
           h('span', { class: 'wer' },
             h('span', { class: 'name' }, p.name),
             p.id === r.me ? h('span', { class: 'marke' }, 'du') : null,
             !p.connected ? h('span', { class: 'marke' }, 'getrennt') : m && m.art ? h('span', { class: `marke ${m.art}` }, m.text) : null),
-          mitMarken ? h('span', { class: 'marken-zahl', title: 'Marken', 'aria-label': `${p.tokens} Marken` }, `◆ ${p.tokens}`) : null,
+          mitMarken ? markenReihe(p.tokens, mehrMarken) : null,
           h('span', { class: 'stand', role: 'img', 'aria-label': `${karten.length} von ${ziel} Karten` }, pixeltext(`${karten.length}/${ziel}`)),
           h('ol', { class: 'mini', 'aria-label': `Zeitleiste von ${p.name}` },
-            Array.from({ length: striche }, (_, i) => (karten[i] ? h('li', {}, pixeltext(karten[i].y)) : h('li', { class: 'leer', 'aria-hidden': 'true' })))),
+            Array.from({ length: striche }, (_, i) => (karten[i] ? h('li', { class: gelandet && karten[i].id === gelandet ? 'geklaut' : '' }, pixeltext(karten[i].y)) : h('li', { class: 'leer', 'aria-hidden': 'true' })))),
           r.can.kick && !p.host ? textknopf('entfernen', async () => {
             if (await frage(`${p.name} aus dem Raum entfernen?`, 'Entfernen')) a.kick(p.id);
           }, { 'data-fk': `kick-${p.id}` }) : null);
@@ -682,7 +788,8 @@ function spielAnsicht(app) {
 
     // Verlauf
     // Während die Karte sich umdreht, bleiben ihre Einträge (gelegt, ggf. geklaut) verborgen.
-    const verborgen = !verdeckt ? 0 : g.log[g.log.length - 1]?.k === 'stolen' ? 2 : 1;
+    const letzter = g.log[g.log.length - 1]?.k;
+    const verborgen = verdeckt ? (letzter === 'stolen' ? 2 : 1) : klaut !== null && letzter === 'stolen' ? 1 : 0;
     const eintraege = (verborgen ? g.log.slice(0, -verborgen) : g.log).slice(-6).reverse();
     verlaufBlock.style.display = eintraege.length ? '' : 'none';
     erneuere(verlauf, [eintraege, g.players.map((p) => [p.id, p.name])], () => eintraege.map((e) => {
@@ -693,9 +800,9 @@ function spielAnsicht(app) {
       if (e.k === 'turnSkipped') return h('li', {}, h('span', {}), h('span', { class: 'wer' }, `${name} wurde übersprungen`));
       if (e.k === 'joined') return h('li', {}, h('span', {}), h('span', { class: 'wer' }, `${name} ist beigetreten`));
       if (e.k === 'left') return h('li', {}, h('span', {}), h('span', { class: 'wer' }, `${e.name} wurde entfernt`));
-      if (e.k === 'stolen') return h('li', {}, h('span', {}), h('span', {}, h('span', { class: 'wer' }, `${name} klaut von ${spieler(e.from)?.name || '?'} · `), lied));
-      if (e.k === 'token') return h('li', {}, h('span', {}), h('span', { class: 'wer' }, `${name} bekommt eine Marke von ${spieler(e.by)?.name || '?'}`));
-      if (e.k === 'tokenRevoked') return h('li', {}, h('span', {}), h('span', { class: 'wer' }, `Marke von ${name} zurückgenommen`));
+      if (e.k === 'stolen') return h('li', { class: 'ok' }, symbol('marke'), h('span', { class: 'wer' }, `${name} klaut die Karte von ${spieler(e.from)?.name || '?'}`));
+      if (e.k === 'token') return h('li', {}, symbol('marke'), h('span', { class: 'wer' }, `${name} bekommt eine Marke von ${spieler(e.by)?.name || '?'}`));
+      if (e.k === 'tokenRevoked') return h('li', { class: 'zurueck' }, symbol('platz'), h('span', { class: 'wer' }, `Marke von ${name} zurückgenommen`));
       return null;
     }));
 
@@ -711,22 +818,27 @@ function spielAnsicht(app) {
         if (await frage('Zurück zur Lobby? Der Spielstand geht verloren.', 'Zur Lobby')) a.newGame();
       }, { 'data-fk': 'lobby' }) : null) : null));
 
-    // Marken-Protokoll (zugeklappt, neueste Einträge oben)
+    // Marken-Protokoll: ganz unten und zugeklappt, zum Nachschauen. Neueste Einträge oben.
     protokollBlock.hidden = !mitMarken;
     const zeilen = mitMarken ? g.tokenLog.slice().reverse() : [];
+    protokollZahl.textContent = zeilen.length === 1 ? '1 Eintrag' : `${zeilen.length} Einträge`;
     erneuere(protokoll, [zeilen, verdeckt && c.round], () => (zeilen.length ? zeilen.map((e) => {
-      let text = '';
-      if (e.k === 'got') text = `${e.name} bekommt eine Marke von ${e.byName}`;
-      else if (e.k === 'revoked') text = `${e.byName} nimmt ${e.name} eine Marke zurück`;
+      let was = '';
+      if (e.k === 'got') was = `bekommt eine Marke von ${e.byName}`;
+      else if (e.k === 'revoked') was = `gibt die Marke wieder ab, zurückgenommen von ${e.byName}`;
       else if (e.k === 'spent') {
         const offen = e.won === null || (verdeckt && e.r === c.round);
-        text = `${e.name} zweifelt an – ${offen ? 'noch offen' : e.won ? 'Karte bekommen' : 'keine Karte'}`;
+        was = `zweifelt an: ${offen ? 'noch offen' : e.won ? 'Karte geklaut' : 'kein Treffer'}`;
       }
-      return h('li', {}, `Runde ${e.r}: ${text} (Stand ${e.n})`);
-    }) : h('li', { class: 'leise' }, 'Noch keine Einträge.')));
+      return h('li', {},
+        h('span', { class: 'p-karte' }, `Karte ${e.r}`),
+        h('span', { class: 'p-wer' }, e.name),
+        h('span', { class: 'p-was' }, was),
+        markenReihe(e.n));
+    }) : h('li', { class: 'p-leer' }, 'Noch hat niemand eine Marke eingesetzt oder bekommen.')));
   }
 
-  return { el, update, weg: () => { tot = true; clearInterval(uhrTimer); skala.entfernen(); } };
+  return { el, update, weg: () => { tot = true; clearTimeout(endeTimer); clearTimeout(landeTimer); clearInterval(uhrTimer); skala.entfernen(); } };
 }
 
 // ── Einhängen ────────────────────────────────────────────────────────────────

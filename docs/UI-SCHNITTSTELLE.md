@@ -169,7 +169,17 @@ Das Protokoll gilt für das ganze Spiel und wird bei „Neues Spiel“ geleert. 
 
 **Verlauf `game.log`**: `{ k: 'stolen', p, from, song }` (p hat die Karte von from geklaut; steht direkt hinter dem zugehörigen `placed`-Eintrag), `{ k: 'token', p, by }` (p bekommt eine Marke von by), `{ k: 'tokenRevoked', p, by }`.
 
-Die derzeitige Bedienung in `src/ui/` (Schalter in der Lobby, Markenzahl in den Zeitleisten-Zeilen, Knöpfe in der Aktionszeile, zugeklapptes Marken-Protokoll unten) ist bewusst schlicht gehalten und trägt eigene Klassen (`marken-*`, `.aktion.marken`, `.reihe.mit-marken`). Die Tipps der Anzweifler werden noch nicht auf der Skala gezeigt.
+**Bedienung in `src/ui/`**
+
+- Lobby: Schiebeschalter „Marken“ (`.schalter`) mit einem Satz Erklärung.
+- Markenstand: in jeder Zeile unter „Zeitleisten“ fünf Plätze links neben dem Kartenstand (`.markenstand`, belegte gefüllt). Die Marke gibt es klein und einfarbig (`symbol('marke')`) und groß als Münze mit orangem Rand (`marke()` in `pixel.js`).
+- Festlegen: Die verdeckte Karte rastet ein, bekommt einen hellen Rahmen und ein Schloss (`.zeiger.fest`).
+- Anzweifeln: Die Lücke wird auf der Skala gewählt. In jeder freien Lücke steht ein vorgezeichneter Marken-Platz. Ein Klick (oder ← →) steckt die eigene Marke probehalber dorthin, der Hauptknopf „Anzweifeln“ (oder Enter) löst `challenge(slot)` aus. Die Tipps der Anzweifler stecken mit Namen als Marken in der Skala (`.tipp`). Gesperrt ist, wo schon die Karte oder eine Marke hängt. Die Frist läuft in der Aktionszeile als Skalenstriche ab (`.frist`), daneben „Passen“ und für den Host „Jetzt aufdecken“.
+- Aufdecken: Jede gesteckte Marke bekommt ihr Urteil (grün mit Haken, rot mit Kreuz). Bekommt ein Anzweifler die Karte, zeigt sie kurz sein Namensschild und fliegt in seine Zeile unter „Zeitleisten“ (`Skala.klau()`). So lange bleiben die Karte dort und der Verlaufseintrag `stolen` verborgen.
+- Marke vergeben: Pixel-Knopf „Marke für …“ rechts in der Aktionszeile (`.knopf.neben`), danach ein Hinweis und für den Host „zurücknehmen“.
+- Marken-Protokoll: ganz unten, zugeklappt (`.protokoll`). Je Zeile Karte, Spieler, Ereignis und Stand danach.
+
+Was `skala.js` dafür entgegennimmt (`fest`, `zweifel`, `dieb`, `geklaut`), steht im Kopf der Datei.
 
 ## Aktionen `app.actions`
 

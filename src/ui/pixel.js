@@ -146,6 +146,12 @@ export function pixelzeile(text, klasse = '') {
 const SYMBOLE = {
   haken: ['......##', '.....##.', '##..##..', '.####...', '..##....'],
   kreuz: ['##...##', '.##.##.', '..###..', '.##.##.', '##...##'],
+  // Regel „Marken“: eine Marke (gelocht wie die Karten) und ein leerer Platz dafür
+  marke: ['.####.', '######', '##..##', '##..##', '######', '.####.'],
+  platz: ['.####.', '#....#', '#....#', '#....#', '#....#', '.####.'],
+  // vorgezeichneter Platz für eine große Marke auf der Skala
+  umriss: ['..##..##..', '.#......#.', '#........#', '#........#', '..........', '..........', '#........#', '#........#', '.#......#.', '..##..##..'],
+  schloss: ['.####.', '.#..#.', '.#..#.', '######', '##..##', '##..##', '######'],
 };
 
 export function symbol(name) {
@@ -183,6 +189,29 @@ function sprite(zeilen, farben, klasse) {
     s.append(p);
   }
   return s;
+}
+
+// Die Marke in groß: eine gelochte Münze mit orangem Rand.
+const MARKE_FARBEN = {
+  r: '#b8721f', // Rand
+  h: '#fff4d6', // Licht
+  m: '#f1dcab', // Fläche
+  s: '#dca652', // Schatten
+};
+const MARKE = [
+  '..rrrrrr..',
+  '.rhhhhhhr.',
+  'rhmmmmmmsr',
+  'rhmmrrmmsr',
+  'rhmr..rmsr',
+  'rhmr..rmsr',
+  'rhmmrrmmsr',
+  'rhmmmmmmsr',
+  '.rssssssr.',
+  '..rrrrrr..',
+];
+export function marke(klasse = '') {
+  return sprite(MARKE, MARKE_FARBEN, `marke-gross ${klasse}`.trim());
 }
 
 const DINO_FARBEN = {

@@ -10,9 +10,16 @@
 //   mode:     'waehlen' (ich bin dran) | 'zuschauen' | 'offen' (aufgedeckt) | 'ruhe'
 //   reveal:   { song, correct, correctSlots } bei mode 'offen'
 //   runde:    Nummer der Karte im Spiel (neue Nummer = neue verdeckte Karte)
+//   dino:     true = der Dino hüpft auf der Skala (Spielende, nur bei mode 'ruhe')
+// Regel „Marken“ (alles optional):
+//   fest:     true = die Lücke ist festgelegt, die Karte ist eingerastet und noch verdeckt
+//   zweifel:  { frei: [Lücke], tipps: [{ key, slot, name, ich, urteil: null|'gut'|'schlecht' }] }
+//             frei = Lücken, in die ich meine Marke stecken darf; tipps = Marken der Anzweifler
+//   dieb:     Name des Anzweiflers, der die Karte bekommt (bei mode 'offen' nach einem Fehlgriff)
+//   geklaut:  true = die Karte ist schon beim Dieb und hängt nicht mehr über der Skala
 
 import { h, warte } from './dom.js';
-import { pixeltext, dino, symbol } from './pixel.js';
+import { pixeltext, kannPixel, dino, symbol, marke } from './pixel.js';
 
 // Jede Karte bekommt eine feste Farbe. Sie hängt am Jahr: Dieselbe Karte sieht bei
 // allen gleich aus, und benachbarte Jahre bekommen deutlich verschiedene Farben
@@ -42,9 +49,15 @@ export function lueckenText(tl, i) {
 }
 
 export class Skala {
-  constructor({ onSelect, onLock } = {}) {
+  constructor({ onSelect, onLock, onTipp, onTippFest } = {}) {
     this.onSelect = onSelect || (() => {});
     this.onLock = onLock || (() => {});
+    this.onTipp = onTipp || (() => {}); // Marke probehalber gesteckt
+    this.onTippFest = onTippFest || (() => {}); // Enter: Tipp bestätigen
+    this.tippWahl = null; // { runde, slot }: wo meine Marke probehalber steckt
+    this.tippEls = new Map();
+    this.klauNr = 0;
+    this.fliegt = false;
     this.karten = new Map();
     this.view = { stations: [], slot: null, mode: 'ruhe', reveal: null, runde: null };
     this.geom = null;
@@ -59,7 +72,10 @@ export class Skala {
     this.geist = h('div', { class: 'geist' });
     // Zeigt nach einem Fehlgriff, wo die Karte hingehört hätte.
     this.geisterJahr = h('span', { class: 'g-jahr' });
-    this.geisterkarte = h('div', { class: 'geisterkarte' }, this.geisterJahr, h('span', {}, 'hier wäre richtig gewesen'));
+    this.geisterText = h('span', {}, 'hier wäre richtig gewesen');
+    this.geisterkarte = h('div', { class: 'geisterkarte' }, this.geisterJahr, this.geisterText);
+    this.tipps = h('div', { class: 'skala-tipps' });
+    this.schild = h('span', { class: 'k-schild' });
 
     this.ziffern = [0, 1, 2, 3].map(() => h('span', { class: 'rolle' }, ['?', 0, 1, 2, 3, 4, 5, 6, 7, 8, 9].map((z) => pixeltext(z))));
     this.kKuenstler = h('span', { class: 'k-kuenstler' });
@@ -69,10 +85,11 @@ export class Skala {
       h('div', { class: 'k-vorn' },
         h('div', { class: 'k-jahr' }, h('span', { class: 'zaehler', 'aria-hidden': 'true' }, this.ziffern.map((r) => h('span', { class: 'ziffer' }, r)))),
         h('div', { class: 'k-text' }, this.kKuenstler, this.kTitel)),
-    ], h('span', { class: 'k-marke schlecht' }, symbol('kreuz')));
+    ], [h('span', { class: 'k-marke schlecht' }, symbol('kreuz')), h('span', { class: 'k-marke schloss' }, symbol('schloss')), this.schild]);
     this.zeiger = h('div', { class: 'zeiger weg' }, h('div', { class: 'nadel' }), this.kachel);
 
-    this.buehne = h('div', { class: 'skala' }, this.linie, this.lage, this.geisterkarte, this.treffer, this.geist, this.zeiger);
+    this.maskottchen = h('div', { class: 'skala-dino', 'aria-hidden': 'true' }, dino('steht'));
+    this.buehne = h('div', { class: 'skala' }, this.linie, this.lage, this.geisterkarte, this.treffer, this.geist, this.tipps, this.maskottchen, this.zeiger);
     // Der Rahmen lässt sehr lange Zeitleisten seitlich scrollen.
     this.el = h('div', { class: 'skala-rahmen' }, this.buehne);
 
@@ -87,14 +104,17 @@ export class Skala {
   }
 
   entfernen() {
+    this.klauNr += 1;
+    this.flieger?.remove();
     document.removeEventListener('keydown', this.tasten);
     this.ro.disconnect();
   }
 
   update(view) {
     const vorher = this.view;
-    this.view = { reveal: null, slot: null, runde: null, ...view };
+    this.view = { reveal: null, slot: null, runde: null, zweifel: null, ...view };
     const v = this.view;
+    if (this.tippWahl && (this.tippWahl.runde !== v.runde || !v.zweifel?.frei?.includes(this.tippWahl.slot))) this.tippWahl = null;
     const waehlbar = v.mode === 'waehlen' || v.mode === 'zuschauen';
     const warWaehlbar = vorher.mode === 'waehlen' || vorher.mode === 'zuschauen';
 
@@ -138,12 +158,14 @@ export class Skala {
       this.kachel.classList.remove('rueck');
       this.zeigeJahr(v.reveal.song.y, false);
     }
-    if (waehlbar && (!warWaehlbar || v.runde !== vorher.runde)) this.verdecke();
-    this.kachel.classList.toggle('falsch', falsch);
     const z = this.zeiger.classList;
+    z.toggle('fest', !!v.fest);
+    if (waehlbar && (!warWaehlbar || v.runde !== vorher.runde)) this.verdecke();
+    if (!falsch) this.kachel.classList.remove('geklaut');
+    this.kachel.classList.toggle('falsch', falsch);
     z.toggle('falsch', falsch);
     z.toggle('greifbar', v.mode === 'waehlen');
-    const weg = v.mode === 'ruhe' || (v.mode === 'offen' && !falsch);
+    const weg = v.mode === 'ruhe' || (v.mode === 'offen' && !falsch) || (falsch && (!!v.geklaut || this.fliegt));
     if (weg && landet) z.add('sofort');
     z.toggle('weg', weg);
 
@@ -204,6 +226,10 @@ export class Skala {
 
   verdecke() {
     this.gerollt = null;
+    this.klauNr += 1;
+    this.fliegt = false;
+    this.flieger?.remove();
+    this.kachel.classList.remove('geklaut');
     this.zeiger.classList.add('sofort');
     this.kachel.classList.add('rueck');
     this.kachel.classList.remove('falsch', 'dreht');
@@ -242,7 +268,10 @@ export class Skala {
     const wi = w - 6;
     const H = wi;
     const p = wi >= 151 ? 5 : wi >= 124 ? 4 : 3; // die Jahreszahl muss in den Innenrahmen passen
-    const kopf = v.mode === 'ruhe' ? 16 : H + 36;
+    const feiert = v.mode === 'ruhe' && !!v.dino;
+    const kopf = v.mode === 'ruhe' ? (feiert ? 78 : 16) : H + 36;
+    this.maskottchen.classList.toggle('da', feiert);
+    this.maskottchen.style.transform = `translateX(${W / 2 - 36}px)`;
     const oben = kopf + 17;
     const st = this.buehne.style;
     st.setProperty('--kw', `${wi}px`);
@@ -337,10 +366,122 @@ export class Skala {
         this.geisterJahr.replaceChildren(pixeltext(jahr));
       }
       this.geisterkarte.style.transform = `translate(${start + g + s * schritt + 3}px, 0)`;
+      this.geisterText.textContent = v.dieb ? `richtig getippt von ${v.dieb}` : 'hier wäre richtig gewesen';
     }
     this.geisterkarte.classList.toggle('da', falsch);
+    this.legeTipps(schritt);
 
     if (sofort) { void this.zeiger.offsetWidth; this.zeiger.classList.remove('sofort'); }
+  }
+
+  // Regel „Marken“: vorgezeichnete Plätze in den freien Lücken und die Marken der Anzweifler.
+  legeTipps(schritt = this.geom.w) {
+    const { mitten, W } = this.geom;
+    const zw = this.view.zweifel;
+    const soll = new Map();
+    if (zw) {
+      const belegt = new Set();
+      for (const t of zw.tipps) {
+        if (t.slot >= mitten.length) continue;
+        belegt.add(t.slot);
+        soll.set(`p:${t.key}`, { ...t, art: 'fest' });
+      }
+      for (const i of zw.frei) {
+        if (belegt.has(i) || i >= mitten.length) continue;
+        const meins = this.tippWahl?.slot === i;
+        soll.set(`f:${i}`, { slot: i, art: meins ? 'wahl' : 'frei', name: meins ? 'dein Tipp?' : '' });
+      }
+    }
+    for (const [key, el] of this.tippEls) {
+      if (!soll.has(key)) { el.remove(); this.tippEls.delete(key); }
+    }
+    for (const [key, t] of soll) {
+      let el = this.tippEls.get(key);
+      if (!el) {
+        el = h('div', {},
+          t.art === 'fest' ? null : h('button', { type: 'button', class: 't-flaeche', tabindex: -1, onclick: () => this.waehleTipp(t.slot) }),
+          h('span', { class: 't-name' }),
+          h('span', { class: 't-kopf' }, symbol('umriss'), marke(),
+            h('span', { class: 't-urteil gut' }, symbol('haken')), h('span', { class: 't-urteil schlecht' }, symbol('kreuz'))),
+          h('span', { class: 't-nadel' }));
+        this.tippEls.set(key, el);
+        this.tipps.append(el);
+      }
+      el.className = `tipp ${t.art}${t.ich ? ' ich' : ''}${t.urteil ? ` ${t.urteil}` : ''}`;
+      const x = mitten[t.slot];
+      el.style.transform = `translateX(${x}px)`;
+      const name = el.querySelector('.t-name');
+      if (name.textContent !== t.name) name.textContent = t.name;
+      name.style.maxWidth = `${Math.max(48, schritt - 10)}px`;
+      const flaeche = el.querySelector('.t-flaeche');
+      if (flaeche) {
+        // großzügig klickbar: bis zur Mitte zwischen dieser und der nächsten Lücke
+        const links = t.slot === 0 ? 0 : (mitten[t.slot - 1] + x) / 2;
+        const rechts = t.slot === mitten.length - 1 ? W : (mitten[t.slot + 1] + x) / 2;
+        flaeche.style.left = `${links - x}px`;
+        flaeche.style.width = `${rechts - links}px`;
+        flaeche.setAttribute('aria-label', `Anzweifeln: ${lueckenText(this.view.stations, t.slot)}`);
+        flaeche.setAttribute('aria-pressed', String(t.art === 'wahl'));
+      }
+    }
+  }
+
+  /** Meine Marke probehalber in eine freie Lücke stecken. Fest wird es erst mit onTippFest. */
+  waehleTipp(i) {
+    if (!this.view.zweifel?.frei?.includes(i)) return;
+    this.tippWahl = { runde: this.view.runde, slot: i };
+    this.legeTipps();
+    this.onTipp(i);
+  }
+
+  /**
+   * Ein Anzweifler bekommt die Karte: Sie zeigt kurz sein Namensschild und fliegt dann
+   * zu seiner Zeitleiste (ziel() liefert das Element dort). Liefert true, wenn sie ankam.
+   */
+  async klau(text, ziel) {
+    this.klauNr += 1;
+    const nr = this.klauNr;
+    await warte(1100);
+    if (nr !== this.klauNr) return false;
+    this.schild.replaceChildren(kannPixel(text) && text.length <= 14 ? pixeltext(text) : text);
+    this.kachel.classList.add('geklaut');
+    await warte(1000);
+    if (nr !== this.klauNr) return false;
+
+    const von = this.kachel.getBoundingClientRect();
+    const song = this.view.reveal?.song;
+    const f = karte('flieger', song ? [
+      h('div', { class: 'k-jahr' }, pixeltext(song.y)),
+      h('div', { class: 'k-text' }, h('span', { class: 'k-kuenstler' }, song.a), h('span', { class: 'k-titel' }, song.t)),
+    ] : []);
+    for (const name of ['--kw', '--kh', '--kp', '--kt']) f.style.setProperty(name, this.buehne.style.getPropertyValue(name));
+    if (song) f.style.setProperty('--farbe', farbe(song));
+    f.style.left = `${von.left}px`;
+    f.style.top = `${von.top}px`;
+    this.flieger = f;
+    document.body.append(f);
+    this.fliegt = true;
+    this.zeiger.classList.add('weg');
+
+    const z = ziel?.()?.getBoundingClientRect();
+    const dx = z ? z.left + z.width / 2 - (von.left + von.width / 2) : 0;
+    const dy = z ? z.top + z.height / 2 - (von.top + von.height / 2) : window.innerHeight - von.top;
+    const flug = f.animate([
+      { transform: 'translate(0, 0) scale(1)' },
+      { transform: 'translate(0, -22px) scale(1.05)', offset: 0.28, easing: 'cubic-bezier(0.5, 0, 0.9, 0.5)' },
+      { transform: `translate(${dx}px, ${dy}px) scale(0.28)` },
+    ], { duration: 640, fill: 'forwards' });
+    // In einem Tab im Hintergrund steht die Animation still: dann nicht ewig warten.
+    await Promise.race([flug.finished.catch(() => {}), warte(1200)]);
+    f.remove();
+    if (this.flieger === f) this.flieger = null;
+    return nr === this.klauNr;
+  }
+
+  klauAbbruch() {
+    this.klauNr += 1;
+    this.flieger?.remove();
+    this.flieger = null;
   }
 
   setzeZeiger(x) {
@@ -418,9 +559,26 @@ export class Skala {
   }
 
   taste(e) {
-    if (this.view.mode !== 'waehlen' || !this.zeiger.classList.contains('greifbar')) return;
     if (e.altKey || e.ctrlKey || e.metaKey) return;
     if (document.querySelector('dialog[open]') || e.target.closest?.('input, textarea, select')) return;
+    // Regel „Marken“: Pfeiltasten wandern durch die freien Lücken, Enter bestätigt den Tipp.
+    const frei = this.view.zweifel?.frei;
+    if (frei?.length) {
+      const sortiert = [...frei].sort((x, y) => x - y);
+      const jetzt = this.tippWahl?.slot ?? null;
+      if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+        e.preventDefault();
+        const d = e.key === 'ArrowLeft' ? -1 : 1;
+        const pos = sortiert.indexOf(jetzt);
+        const neu = pos < 0 ? (d > 0 ? 0 : sortiert.length - 1) : Math.min(sortiert.length - 1, Math.max(0, pos + d));
+        this.waehleTipp(sortiert[neu]);
+      } else if (e.key === 'Enter' && jetzt !== null && !e.target.closest?.('button, a')) {
+        e.preventDefault();
+        this.onTippFest();
+      }
+      return;
+    }
+    if (this.view.mode !== 'waehlen' || !this.zeiger.classList.contains('greifbar')) return;
     const n = this.view.stations.length;
     const s = this.view.slot;
     if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {

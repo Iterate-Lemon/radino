@@ -281,10 +281,15 @@ input[type='range']::-webkit-slider-thumb { -webkit-appearance: none; width: 8px
 .skala-rahmen { margin-top: 4px; overflow-x: auto; overflow-y: hidden; }
 .skala {
   position: relative;
+  transition: height 0.5s var(--weich);
   user-select: none;
   -webkit-user-select: none;
 }
-.skala-linie { position: absolute; left: 0; right: 0; top: var(--kopf); height: 2px; background: var(--linie-stark); }
+.skala-linie { position: absolute; left: 0; right: 0; top: var(--kopf); height: 2px; background: var(--linie-stark); transition: top 0.5s var(--weich); }
+/* Spielende: Der Dino hüpft auf der Skala über den Siegkarten. */
+.skala-dino { position: absolute; left: 0; top: calc(var(--kopf) - 57px); --p: 3px; opacity: 0; transition: top 0.5s var(--weich), opacity 0.2s; }
+.skala-dino.da { opacity: 1; transition-delay: 0s, 0.45s; }
+.skala-dino.da .dino { animation: huepf 0.7s steps(2) infinite; }
 .skala-linie::after {
   content: '';
   position: absolute; left: 0; right: 0; top: 2px; height: 6px;
@@ -323,7 +328,7 @@ input[type='range']::-webkit-slider-thumb { -webkit-appearance: none; width: 8px
   background: var(--grund);
   box-shadow: 0 0 0 2px var(--kante);
 }
-.station { transition: transform 0.34s var(--weich), opacity 0.4s; }
+.station { transition: transform 0.34s var(--weich), opacity 0.4s, top 0.5s var(--weich); }
 .station.kommt { opacity: 0; }
 .station.landet { transition: transform 0.36s cubic-bezier(0.35, 1.5, 0.6, 1); z-index: 2; }
 .station::after { content: ''; position: absolute; left: 50%; top: -17px; width: 2px; height: 26px; margin-left: -1px; background: var(--schrift); }
@@ -456,7 +461,6 @@ input[type='range']::-webkit-slider-thumb { -webkit-appearance: none; width: 8px
 
 .ende .ansage h1 { --p: 9px; }
 .ende .ansage h1.klar { font-size: 60px; }
-.sieger-dino { --p: 5px; animation: huepf 0.7s steps(2) infinite; margin-bottom: 4px; }
 @keyframes huepf { 50% { transform: translateY(-10px); } }
 .ende .skala-rahmen { margin-top: 20px; }
 
@@ -526,16 +530,148 @@ dialog.frage .linkfeld { display: block; width: 100%; margin-top: 16px; }
 .ton-knoepfe { display: inline-flex; gap: 18px; }
 .ton-knoepfe:empty { display: none; }
 
-/* Regel „Marken“: vorläufige Bedienung, die Gestaltung folgt. */
-.aktion.marken { flex-wrap: wrap; row-gap: 10px; padding: 8px 0; }
-.reihe.mit-marken { grid-template-columns: 150px auto 60px minmax(0, 1fr) auto; }
-.marken-zahl { font-size: 13px; white-space: nowrap; color: var(--leise); }
-.marken-uhr { font-variant-numeric: tabular-nums; }
-.marken-uhr:empty { display: none; }
-.marken-protokoll { margin-top: 28px; font-size: 13px; }
-.marken-protokoll summary { cursor: pointer; color: var(--leise); }
-.marken-liste { list-style: none; margin: 10px 0 0; padding: 0; }
-.marken-liste li { padding: 7px 0; border-bottom: 2px solid var(--linie); }
+
+/* ── Regel „Marken“ ────────────────────────────────────────────────────────── */
+
+/* Text mit einer Marke davor */
+.mit-marke { display: inline-flex; align-items: center; gap: 9px; --p: 2px; }
+.textknopf.mit-marke { text-decoration: none; }
+.textknopf.mit-marke span { text-decoration: underline; text-decoration-color: var(--linie-stark); text-decoration-thickness: 2px; text-underline-offset: 5px; }
+.textknopf.mit-marke:hover span { text-decoration-color: var(--schrift); }
+
+/* Markenstand: fünf Plätze, die belegten sind gefüllt */
+.markenstand { display: inline-flex; gap: 3px; color: var(--schrift); --p: 2px; }
+.markenstand .leer { color: var(--linie-stark); }
+.markenstand .frisch { animation: marke-neu 0.3s steps(1) 4; }
+@keyframes marke-neu { 50% { opacity: 0; } }
+.reihe.mit-marken { grid-template-columns: 150px 72px 60px minmax(0, 1fr) auto; }
+.reihe.getrennt .markenstand { color: var(--leise); }
+
+/* Nebenaktion als Pixel-Knopf: dunkel mit leichtem orangen Schimmer */
+.knopf.neben {
+  --rand: var(--leucht-dunkel);
+  --p: 2px;
+  display: inline-flex; align-items: center; gap: 10px;
+  margin: 2px 2px 7px;
+  padding: 10px 14px 9px;
+  background: color-mix(in srgb, var(--leucht) 12%, var(--grund));
+  color: #f6d7a0;
+  box-shadow: -2px 0 0 var(--rand), 2px 0 0 var(--rand), 0 -2px 0 var(--rand), 0 2px 0 var(--rand), 0 7px 0 color-mix(in srgb, var(--leucht-dunkel) 45%, var(--grund));
+  transition: transform 0.06s steps(2), box-shadow 0.06s steps(2);
+}
+.knopf.neben:hover:not(:disabled) { --rand: var(--leucht); background: color-mix(in srgb, var(--leucht) 20%, var(--grund)); color: var(--leucht-hell); }
+.knopf.neben:active:not(:disabled) {
+  transform: translateY(3px);
+  box-shadow: -2px 0 0 var(--rand), 2px 0 0 var(--rand), 0 -2px 0 var(--rand), 0 2px 0 var(--rand), 0 4px 0 color-mix(in srgb, var(--leucht-dunkel) 45%, var(--grund));
+}
+.aktion .rechts { align-items: center; }
+
+/* Die Karte ist festgelegt: Sie rastet ein, bekommt einen hellen Rahmen und ein Schloss. */
+.kachel { transition: scale 0.14s steps(3), rotate 0.3s var(--weich), transform 0.34s var(--weich), translate 0.12s steps(2); }
+.zeiger.fest .kachel { translate: 0 10px; animation: einrasten 0.32s steps(1); }
+@keyframes einrasten { 0% { translate: 0 0; } 30% { translate: 0 16px; } 65% { translate: 0 7px; } 100% { translate: 0 10px; } }
+.zeiger.fest .kachel.rueck .k-ring { display: block; background: var(--schrift); animation: aufblinken 0.24s steps(1) 0.1s 2 backwards; }
+.zeiger.fest .kachel.rueck .k-marke.schloss { display: grid; background: var(--schrift); animation: aufblinken 0.24s steps(1) 0.1s 2 backwards; }
+
+/* Marken der Anzweifler auf der Skala. Jede steckt mit einer Nadel in ihrer Lücke. */
+.skala-tipps { position: absolute; inset: 0; z-index: 2; pointer-events: none; }
+.tipp { position: absolute; left: 0; top: 0; width: 0; height: 100%; transition: transform 0.34s var(--weich), opacity 0.3s 1.2s; }
+.t-flaeche { position: absolute; top: 0; height: 100%; padding: 0; border: 0; background: none; cursor: pointer; pointer-events: auto; outline: none; }
+.t-kopf { position: absolute; left: -10px; top: calc(var(--kopf) - 31px); width: 20px; height: 20px; display: grid; place-items: center; --p: 2px; color: var(--leise); transition: top 0.5s var(--weich); }
+.t-kopf > * { grid-area: 1 / 1; }
+.t-nadel { position: absolute; left: -1px; top: calc(var(--kopf) - 11px); width: 2px; height: 40px; background: var(--schrift); transition: top 0.5s var(--weich); }
+.t-name {
+  position: absolute; left: 0; top: calc(var(--kopf) - 55px); translate: -50% 0;
+  overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+  font-size: 12px; font-weight: 700; line-height: 18px; color: var(--schrift);
+}
+.t-urteil { display: none; width: 22px; height: 22px; place-items: center; color: var(--grund); box-shadow: 0 0 0 3px var(--grund); }
+/* freier Platz: nur der vorgezeichnete Umriss */
+.tipp.frei .marke-gross, .tipp.frei .t-nadel { display: none; }
+.tipp.frei:hover .t-kopf { color: var(--leucht); }
+.tipp.frei:hover .t-nadel { display: block; background: var(--leucht); opacity: 0.5; }
+/* meine Marke steckt probehalber */
+.tipp.wahl .t-kopf > .symbol, .tipp.fest .t-kopf > .symbol { display: none; }
+.tipp.wahl .t-name { color: var(--leucht-hell); }
+.tipp.wahl .t-nadel { background: var(--leucht); }
+.tipp.wahl .marke-gross { animation: wippen 0.7s steps(2) infinite; }
+@keyframes wippen { 50% { transform: translateY(-3px); } }
+/* festgelegter Tipp: die Marke wird eingesteckt */
+.tipp.fest .t-kopf, .tipp.fest .t-name { animation: einstecken 0.24s steps(3) backwards; }
+.tipp.fest .t-nadel { transform-origin: top; animation: nadel 0.24s steps(3) backwards; }
+@keyframes einstecken { from { transform: translateY(-14px); opacity: 0; } }
+@keyframes nadel { from { transform: scaleY(0); } }
+/* nach dem Aufdecken: das Urteil */
+.tipp.gut .marke-gross, .tipp.schlecht .marke-gross { display: none; }
+.tipp.gut .t-urteil.gut { display: grid; background: var(--gut); }
+.tipp.schlecht .t-urteil.schlecht { display: grid; background: var(--falsch); }
+.tipp.gut .t-name { color: var(--gut); }
+.tipp.gut .t-nadel { background: var(--gut); }
+.tipp.schlecht .t-name { color: var(--falsch); }
+.tipp.schlecht .t-nadel { background: var(--falsch); }
+.tipp.schlecht { opacity: 0.45; }
+
+/* Ein Anzweifler bekommt die Karte: Namensschild, dann fliegt sie zu seiner Zeitleiste. */
+.k-schild {
+  position: absolute; left: 50%; bottom: -14px; translate: -50% 0;
+  display: none; max-width: calc(100% + 36px);
+  padding: 7px 10px 6px;
+  overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+  background: var(--gut); color: var(--grund);
+  font-size: 12px; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase;
+  box-shadow: 0 0 0 3px var(--grund);
+  --p: 2px;
+}
+.kachel.geklaut { rotate: 0deg; }
+.kachel.geklaut .k-ring { background: var(--gut); }
+.kachel.geklaut .k-marke.schlecht { display: none; }
+.kachel.geklaut .k-schild { display: block; animation: aufblinken 0.2s steps(1) 2; }
+.zeiger.falsch:has(.geklaut) .nadel { background: var(--gut); }
+.karte.flieger { position: fixed; top: 0; left: 0; z-index: 30; pointer-events: none; --p: var(--kp); }
+.flieger .k-ring { display: block; background: var(--gut); }
+.mini li.geklaut { color: var(--gut); animation: aufblinken 0.36s steps(1) 3; }
+.mini li.geklaut::before { background: var(--gut); }
+
+/* Frist zum Anzweifeln: Skalenstriche, die nacheinander erlöschen */
+.frist { display: inline-flex; align-items: center; gap: 12px; color: var(--zahl); --p: 2px; }
+.frist-striche { display: inline-flex; align-items: flex-end; gap: 4px; height: 16px; }
+.frist-striche i { width: 2px; height: 100%; background: var(--schrift); }
+.frist-striche i:nth-child(5n + 1) { height: 100%; }
+.frist-striche i:not(:nth-child(5n + 1)) { height: 10px; }
+.frist-striche i.aus { background: var(--linie); }
+.frist-zahl { min-width: 26px; display: flex; justify-content: flex-end; }
+.frist.knapp .frist-zahl { color: var(--leucht); animation: aufblinken 0.5s steps(1) infinite; }
+
+/* Schalter in der Lobby: ein Schieber wie an einem Radio */
+.regeltext { display: block; max-width: 44ch; margin-top: 2px; }
+.schalter { flex: none; display: inline-flex; align-items: center; gap: 12px; padding: 6px 0; background: none; border: 0; color: var(--leise); cursor: pointer; --p: 2px; }
+.schalter .bahn { position: relative; width: 44px; height: 22px; border: 2px solid var(--linie-stark); }
+.schalter .bahn::before { content: ''; position: absolute; left: 4px; right: 4px; top: 8px; height: 2px; background: var(--linie); }
+.schalter .bahn::after { content: ''; position: absolute; left: 2px; top: 2px; width: 14px; height: 14px; background: var(--leise); }
+.schalter[aria-checked='true'] { color: var(--schrift); }
+.schalter[aria-checked='true'] .bahn { border-color: var(--schrift); }
+.schalter[aria-checked='true'] .bahn::after { left: auto; right: 2px; background: var(--schrift); }
+.schalter:hover:not(:disabled) .bahn { border-color: var(--schrift); }
+.schalter:disabled { cursor: default; }
+
+.verlauf .zurueck .symbol { color: var(--leise); }
+
+/* Marken-Protokoll: ganz unten, zugeklappt */
+.protokoll { margin-top: 44px; font-size: 13px; }
+.protokoll summary { display: inline-flex; align-items: center; gap: 12px; list-style: none; cursor: pointer; color: var(--ganz-leise); }
+.protokoll summary::-webkit-details-marker { display: none; }
+.protokoll summary .etikett { color: inherit; }
+.protokoll summary:hover, .protokoll[open] summary { color: var(--leise); }
+.klappe { position: relative; flex: none; width: 10px; height: 10px; }
+.klappe::before, .klappe::after { content: ''; position: absolute; background: currentColor; }
+.klappe::before { left: 0; right: 0; top: 4px; height: 2px; }
+.klappe::after { top: 0; bottom: 0; left: 4px; width: 2px; }
+.protokoll[open] .klappe::after { display: none; }
+.protokoll-liste { max-width: 760px; max-height: 322px; margin-top: 14px; overflow-y: auto; border-top: 2px solid var(--linie-stark); }
+.protokoll-liste li { display: grid; grid-template-columns: 76px 150px minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 9px 0; border-bottom: 2px solid var(--linie); color: var(--leise); }
+.protokoll-liste .p-karte { color: var(--ganz-leise); font-variant-numeric: tabular-nums; }
+.protokoll-liste .p-wer { color: var(--schrift); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.protokoll-liste li.p-leer { display: block; color: var(--ganz-leise); }
 
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { transition-duration: 0.01ms !important; animation: none !important; }
