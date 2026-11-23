@@ -7,7 +7,7 @@
 
 import { CONFIG } from '../../config.js';
 import { Emitter, local, session } from '../lib/util.js';
-import { cleanName, normalizeSettings } from '../core/game.js';
+import { cleanName, normalizeSettings, TOKENS } from '../core/game.js';
 import { parseInvite } from '../net/protocol.js';
 import { spotifyAuth } from '../music/spotify-auth.js';
 import { SpotifyMusic } from '../music/spotify-music.js';
@@ -130,7 +130,7 @@ export function createApp({ db, testMode = false }) {
       const active = g.activeId;
       const mine = active === me;
       const card = g.card;
-      const playing = phase === 'turn' || phase === 'reveal';
+      const playing = phase === 'turn' || phase === 'challenge' || phase === 'reveal';
       r.me = me;
       r.isMyTurn = mine && phase === 'turn';
       r.activePlayer = g.players.find((p) => p.id === active) || null;
@@ -149,7 +149,29 @@ export function createApp({ db, testMode = false }) {
         }
       }
       r.startBlocker = startBlocker;
+
+      // Regel "Marken": Anzweifel-Phase und Markenvergabe
+      const ch = phase === 'challenge' ? card?.challenge : null;
+      r.challenge = ch
+        ? {
+            // Endzeitpunkt in der eigenen Uhr (Date.now()), null = ohne Zeitlimit
+            endsAt: ch.until === null || ch.until === undefined ? null : isHost ? ch.until : Math.round(room.transport.toLocalTime(ch.until)),
+            lockedSlot: card.slot,
+            picks: ch.picks.map((c) => ({ ...c })),
+            passed: ch.passed.slice(),
+            pending: ch.pending.slice(),
+            freeSlots: ch.freeSlots.slice(),
+            mine: ch.picks.find((c) => c.p === me)?.slot ?? null,
+          }
+        : null;
+      const maySay = !!ch && ch.pending.includes(me);
+      const grantOpen = !!g.settings.tokens && phase === 'reveal' && !!card;
       r.can = {
+        challenge: maySay,
+        pass: maySay,
+        endChallenge: isHost && phase === 'challenge',
+        giveToken: grantOpen && !mine && !card.grant && !!r.mePlayer && !!r.activePlayer && r.activePlayer.tokens < TOKENS.max,
+        revokeToken: grantOpen && isHost && !!card.grant,
         editSettings: isHost && phase === 'lobby',
         start: isHost && phase === 'lobby' && !startBlocker,
         select: phase === 'turn' && mine && !card?.locked,
@@ -261,6 +283,21 @@ export function createApp({ db, testMode = false }) {
     },
     lockIn() {
       room?.act('lock');
+    },
+    challenge(slot) {
+      room?.act('challenge', { slot });
+    },
+    passChallenge() {
+      room?.act('pass');
+    },
+    endChallenge() {
+      if (room?.role === 'host') room.act('endChallenge');
+    },
+    giveToken() {
+      room?.act('giveToken');
+    },
+    revokeToken() {
+      if (room?.role === 'host') room.act('revokeToken');
     },
     nextTurn() {
       room?.act('next');

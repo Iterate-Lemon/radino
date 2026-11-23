@@ -15,7 +15,7 @@ const int = (x, min, max) => Number.isInteger(x) && x >= min && x <= max;
 const str = (x, max) => typeof x === 'string' && x.length <= max;
 const finite = (x) => typeof x === 'number' && Number.isFinite(x);
 
-export const GUEST_ACTIONS = ['select', 'lock', 'next', 'skipSong'];
+export const GUEST_ACTIONS = ['select', 'lock', 'next', 'skipSong', 'challenge', 'pass', 'giveToken'];
 export const AUDIO_STATES = ['off', 'login', 'connecting', 'ready', 'error'];
 
 function parse(raw, max) {
@@ -43,6 +43,10 @@ export function parseGuestMessage(raw) {
       const out = { t: 'act', a: m.a };
       if (m.a === 'select') {
         if (!(m.slot === null || int(m.slot, 0, 100))) return null;
+        out.slot = m.slot;
+      }
+      if (m.a === 'challenge') {
+        if (!int(m.slot, 0, 100)) return null;
         out.slot = m.slot;
       }
       if (m.round !== undefined) {

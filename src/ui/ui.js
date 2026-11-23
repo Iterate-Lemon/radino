@@ -405,7 +405,7 @@ function lobbyAnsicht(app) {
         h('span', {}, h('b', {}, MODE_TEXT[m][0]), h('span', { class: 'text' }, MODE_TEXT[m][1])))),
     ]);
 
-    erneuere(regeln, [s.target, s.startAt, edit], () => [
+    erneuere(regeln, [s.target, s.startAt, s.tokens, edit], () => [
       etikett('Regeln'),
       h('div', { class: 'zeile' }, h('span', {}, 'Karten zum Sieg ', h('span', { class: 'leise' }, '(mit Startkarte)')),
         h('div', { class: 'zaehlwerk' },
@@ -417,6 +417,12 @@ function lobbyAnsicht(app) {
           type: 'button', 'aria-pressed': String(s.startAt === v), disabled: !edit, 'data-fk': `ab-${v}`,
           onclick: () => a.updateSettings({ startAt: v }),
         }, v === 0 ? 'Songanfang' : `Sekunde ${v}`)))),
+      // Regel „Marken“ (vorläufige Bedienung, Gestaltung folgt)
+      h('div', { class: 'zeile' }, h('span', {}, 'Marken ', h('span', { class: 'leise' }, '(anzweifeln und Karten klauen)')),
+        h('div', { class: 'segmente', role: 'group', 'aria-label': 'Marken' }, [false, true].map((v) => h('button', {
+          type: 'button', 'aria-pressed': String(!!s.tokens === v), disabled: !edit, 'data-fk': `marken-${v ? 'an' : 'aus'}`,
+          onclick: () => a.updateSettings({ tokens: v }),
+        }, v ? 'An' : 'Aus')))),
     ]);
 
     erneuere(editionen, [state.editions, s.editions, s.mode, edit], () => [
@@ -464,6 +470,15 @@ function spielAnsicht(app) {
   const verlauf = h('ol', { class: 'verlauf' });
   const verlaufBlock = h('section', {}, etikett('Verlauf'), verlauf);
   const hostleiste = h('div', {});
+  // Regel „Marken“ (vorläufige Bedienung, Gestaltung folgt)
+  const uhr = h('span', { class: 'wo marken-uhr' });
+  const protokoll = h('ol', { class: 'marken-liste' });
+  const protokollBlock = h('details', { class: 'marken-protokoll' }, h('summary', {}, 'Marken-Protokoll'), protokoll);
+  const tick = () => {
+    const ende = app.getState().room?.challenge?.endsAt;
+    uhr.textContent = ende ? `Noch ${Math.max(0, Math.ceil((ende - Date.now()) / 1000))} s` : '';
+  };
+  const uhrTimer = setInterval(tick, 250);
   let tot = false;
   let gesehen = { runde: null, locked: false };
   let rollt = null; // Runde, deren Karte sich gerade umdreht
@@ -481,7 +496,8 @@ function spielAnsicht(app) {
       h('div', { class: 'unten' },
         h('section', {}, etikett('Zeitleisten'), reihenPlatz),
         verlaufBlock),
-      hostleiste));
+      hostleiste,
+      protokollBlock));
 
   function update(state) {
     if (tot || !state.room?.game) return;
@@ -519,7 +535,7 @@ function spielAnsicht(app) {
     if (verdeckt && c.correct) stationen = stationen.filter((s) => s.id !== c.song.id);
 
     let modus = 'ruhe';
-    if (phase === 'turn') modus = darfWaehlen ? 'waehlen' : 'zuschauen';
+    if (phase === 'turn' || phase === 'challenge') modus = darfWaehlen ? 'waehlen' : 'zuschauen';
     else if (phase === 'reveal') modus = 'offen';
     else if (c?.locked && c.song && zeige && c.by === zeige.id) modus = 'offen';
     skala.el.hidden = !zeige;
@@ -545,7 +561,11 @@ function spielAnsicht(app) {
       const s = c.song;
       if (ichDran) setzeTitel(titel, c.correct ? 'Richtig!' : 'Leider falsch.', c.correct ? 'gut' : 'falsch');
       else setzeTitel(titel, `${aktiv?.name ?? '?'} liegt ${c.correct ? 'richtig!' : 'falsch.'}`, c.correct ? 'gut' : 'falsch');
-      unter.textContent = `${s.a} – ${s.t} ist von ${s.y}. ${c.correct ? 'Die Karte bleibt.' : 'Die Karte ist weg.'}`;
+      unter.textContent = `${s.a} – ${s.t} ist von ${s.y}. ${c.correct ? 'Die Karte bleibt.' : c.wonBy ? `Die Karte geht an ${c.wonBy === r.me ? 'dich' : spieler(c.wonBy)?.name ?? '?'}.` : 'Die Karte ist weg.'}`;
+    } else if (phase === 'challenge') {
+      setzeTitel(titel, 'Anzweifeln?');
+      unter.textContent = ichDran ? 'Deine Lücke steht fest. Die anderen dürfen jetzt anzweifeln.'
+        : `${aktiv?.name ?? '?'} hat festgelegt. Wer anzweifelt, zahlt eine Marke und wählt eine andere Lücke.`;
     } else {
       setzeTitel(titel, ichDran ? 'Du bist dran!' : `${aktiv?.name ?? '?'} ist dran.`);
       unter.textContent = ichDran ? 'Wo gehört dieser Song in deine Zeitleiste?' : `Der Song wird in die Zeitleiste von ${aktiv?.name ?? '?'} eingeordnet.`;
@@ -574,10 +594,33 @@ function spielAnsicht(app) {
     // Aktionszeile
     const tl = zeige ? stationen : [];
     const naechster = phase === 'reveal' && aktiv ? naechsterSpieler(g, aktiv.id) : null;
-    erneuere(aktion, [phase, verdeckt, darfWaehlen, slot, r.can, aktiv && [aktiv.id, aktiv.name, aktiv.connected], naechster?.name, tl.map((s) => s.y), r.isHost], () => {
+    const mitMarken = !!g.settings.tokens;
+    const wer = (id) => (id === r.me ? 'du' : spieler(id)?.name ?? '?');
+    aktion.classList.toggle('marken', mitMarken);
+    tick();
+    erneuere(aktion, [phase, verdeckt, darfWaehlen, slot, r.can, aktiv && [aktiv.id, aktiv.name, aktiv.connected], naechster?.name, tl.map((s) => s.y), r.isHost,
+      mitMarken && [r.challenge, c?.grant, g.players.map((p) => p.name)]], () => {
       if (verdeckt) return null;
       const teile = [];
       const rechts = [];
+      if (phase === 'challenge' && r.challenge) {
+        const ch = r.challenge;
+        if (r.can.challenge) {
+          teile.push(h('span', { class: 'wo' }, 'Anzweifeln (1 Marke):'));
+          ch.freeSlots.forEach((i) => teile.push(knopf(lueckenText(tl, i), () => a.challenge(i), '', { 'data-fk': `zweifel-${i}` })));
+          teile.push(textknopf('Passen', a.passChallenge, { 'data-fk': 'passen' }));
+        }
+        const stand = [
+          `${aktiv?.name ?? '?'} liegt auf: ${lueckenText(tl, ch.lockedSlot)}`,
+          ...ch.picks.map((p) => `${wer(p.p)} ${p.p === r.me ? 'zweifelst' : 'zweifelt'} an: ${lueckenText(tl, p.slot)}`),
+          ch.passed.length ? `gepasst: ${ch.passed.map(wer).join(', ')}` : null,
+          ch.pending.length ? `offen: ${ch.pending.map(wer).join(', ')}` : null,
+        ].filter(Boolean);
+        teile.push(h('span', { class: 'wo marken-stand' }, stand.join(' · ')));
+        teile.push(uhr);
+        if (r.can.endChallenge) teile.push(h('div', { class: 'rechts' }, textknopf('Jetzt aufdecken', a.endChallenge, { 'data-fk': 'aufdecken' })));
+        return teile;
+      }
       if (phase === 'ended') {
         if (r.can.reset) {
           teile.push(knopf('Neues Spiel', a.newGame, 'haupt', { 'data-fk': 'neu' }));
@@ -592,6 +635,13 @@ function spielAnsicht(app) {
         teile.push(h('span', { class: 'wo' }, r.can.next
           ? (naechster ? `Als Nächstes: ${naechster.id === r.me ? 'du' : naechster.name}` : '')
           : `${aktiv?.name ?? 'Der aktive Spieler'} oder der Host macht weiter.`));
+        if (mitMarken) {
+          if (c.grant) teile.push(h('span', { class: 'wo' }, `Marke für ${aktiv?.id === r.me ? 'dich' : aktiv?.name ?? '?'} von ${c.grant.by === r.me ? 'dir' : wer(c.grant.by)}.`));
+          else if (r.can.giveToken) {
+            teile.push(knopf(`Marke für ${aktiv?.name ?? '?'}`, a.giveToken, '', { 'data-fk': 'marke-geben', title: 'Titel und Interpret richtig genannt?' }));
+          }
+          if (r.can.revokeToken) teile.push(textknopf('Marke zurücknehmen', a.revokeToken, { 'data-fk': 'marke-zurueck' }));
+        }
         return teile;
       }
       if (darfWaehlen) {
@@ -610,17 +660,18 @@ function spielAnsicht(app) {
     const ziel = g.settings.target;
     const liste = phase === 'ended' ? [...g.players].sort((x, y) => y.timeline.length - x.timeline.length) : g.players;
     const markiert = phase === 'ended' ? null : aktiv?.id;
-    const zeigbar = verdeckt && c.correct ? c.song.id : null; // noch nicht verraten
-    erneuere(reihenPlatz, [liste.map((p) => [p.id, p.name, p.connected, p.host, p.timeline.map((s) => s.y), musikMarke(g, p)]), markiert, ziel, r.me, r.can.kick, zeigbar], () =>
+    const zeigbar = verdeckt && (c.correct || c.wonBy) ? c.song.id : null; // noch nicht verraten
+    erneuere(reihenPlatz, [liste.map((p) => [p.id, p.name, p.connected, p.host, p.timeline.map((s) => s.y), musikMarke(g, p), mitMarken && p.tokens]), markiert, ziel, r.me, r.can.kick, zeigbar], () =>
       h('ul', { class: 'reihen' }, liste.map((p) => {
         const karten = zeigbar ? p.timeline.filter((s) => s.id !== zeigbar) : p.timeline;
         const m = p.connected ? musikMarke(g, p) : null;
         const striche = Math.max(karten.length, ziel <= 12 ? ziel : 0);
-        return h('li', { class: `reihe${p.id === markiert ? ' dran' : ''}${p.connected ? '' : ' getrennt'}` },
+        return h('li', { class: `reihe${mitMarken ? ' mit-marken' : ''}${p.id === markiert ? ' dran' : ''}${p.connected ? '' : ' getrennt'}` },
           h('span', { class: 'wer' },
             h('span', { class: 'name' }, p.name),
             p.id === r.me ? h('span', { class: 'marke' }, 'du') : null,
             !p.connected ? h('span', { class: 'marke' }, 'getrennt') : m && m.art ? h('span', { class: `marke ${m.art}` }, m.text) : null),
+          mitMarken ? h('span', { class: 'marken-zahl', title: 'Marken', 'aria-label': `${p.tokens} Marken` }, `◆ ${p.tokens}`) : null,
           h('span', { class: 'stand', role: 'img', 'aria-label': `${karten.length} von ${ziel} Karten` }, pixeltext(`${karten.length}/${ziel}`)),
           h('ol', { class: 'mini', 'aria-label': `Zeitleiste von ${p.name}` },
             Array.from({ length: striche }, (_, i) => (karten[i] ? h('li', {}, pixeltext(karten[i].y)) : h('li', { class: 'leer', 'aria-hidden': 'true' })))),
@@ -630,7 +681,9 @@ function spielAnsicht(app) {
       })));
 
     // Verlauf
-    const eintraege = (verdeckt ? g.log.slice(0, -1) : g.log).slice(-6).reverse();
+    // Während die Karte sich umdreht, bleiben ihre Einträge (gelegt, ggf. geklaut) verborgen.
+    const verborgen = !verdeckt ? 0 : g.log[g.log.length - 1]?.k === 'stolen' ? 2 : 1;
+    const eintraege = (verborgen ? g.log.slice(0, -verborgen) : g.log).slice(-6).reverse();
     verlaufBlock.style.display = eintraege.length ? '' : 'none';
     erneuere(verlauf, [eintraege, g.players.map((p) => [p.id, p.name])], () => eintraege.map((e) => {
       const name = spieler(e.p)?.name || '?';
@@ -640,6 +693,9 @@ function spielAnsicht(app) {
       if (e.k === 'turnSkipped') return h('li', {}, h('span', {}), h('span', { class: 'wer' }, `${name} wurde übersprungen`));
       if (e.k === 'joined') return h('li', {}, h('span', {}), h('span', { class: 'wer' }, `${name} ist beigetreten`));
       if (e.k === 'left') return h('li', {}, h('span', {}), h('span', { class: 'wer' }, `${e.name} wurde entfernt`));
+      if (e.k === 'stolen') return h('li', {}, h('span', {}), h('span', {}, h('span', { class: 'wer' }, `${name} klaut von ${spieler(e.from)?.name || '?'} · `), lied));
+      if (e.k === 'token') return h('li', {}, h('span', {}), h('span', { class: 'wer' }, `${name} bekommt eine Marke von ${spieler(e.by)?.name || '?'}`));
+      if (e.k === 'tokenRevoked') return h('li', {}, h('span', {}), h('span', { class: 'wer' }, `Marke von ${name} zurückgenommen`));
       return null;
     }));
 
@@ -654,9 +710,23 @@ function spielAnsicht(app) {
       r.can.reset && phase !== 'ended' ? textknopf('Zurück zur Lobby', async () => {
         if (await frage('Zurück zur Lobby? Der Spielstand geht verloren.', 'Zur Lobby')) a.newGame();
       }, { 'data-fk': 'lobby' }) : null) : null));
+
+    // Marken-Protokoll (zugeklappt, neueste Einträge oben)
+    protokollBlock.hidden = !mitMarken;
+    const zeilen = mitMarken ? g.tokenLog.slice().reverse() : [];
+    erneuere(protokoll, [zeilen, verdeckt && c.round], () => (zeilen.length ? zeilen.map((e) => {
+      let text = '';
+      if (e.k === 'got') text = `${e.name} bekommt eine Marke von ${e.byName}`;
+      else if (e.k === 'revoked') text = `${e.byName} nimmt ${e.name} eine Marke zurück`;
+      else if (e.k === 'spent') {
+        const offen = e.won === null || (verdeckt && e.r === c.round);
+        text = `${e.name} zweifelt an – ${offen ? 'noch offen' : e.won ? 'Karte bekommen' : 'keine Karte'}`;
+      }
+      return h('li', {}, `Runde ${e.r}: ${text} (Stand ${e.n})`);
+    }) : h('li', { class: 'leise' }, 'Noch keine Einträge.')));
   }
 
-  return { el, update, weg: () => { tot = true; skala.entfernen(); } };
+  return { el, update, weg: () => { tot = true; clearInterval(uhrTimer); skala.entfernen(); } };
 }
 
 // ── Einhängen ────────────────────────────────────────────────────────────────
