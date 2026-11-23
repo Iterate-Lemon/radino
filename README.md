@@ -19,7 +19,7 @@ Danach wird das Jahr aufgedeckt. Wer zuerst 10 Karten in seiner Zeitleiste hat, 
 | `src/net/` | Verbindungen (verschlüsselt über MQTT/WebSocket) und Nachrichtenprotokoll |
 | `src/music/` | Spotify-Login (PKCE), Spotify-Player, Test-Player |
 | `src/app/` | Host- und Gast-Sitzung, Synchronisierung, Anzeige-Modell |
-| `src/ui/` | schlichte Oberfläche, austauschbar ([docs/UI-SCHNITTSTELLE.md](docs/UI-SCHNITTSTELLE.md)) |
+| `src/ui/` | Oberfläche im Pixel-Look, austauschbar ([docs/UI-SCHNITTSTELLE.md](docs/UI-SCHNITTSTELLE.md)) |
 | `data/songs.json` | Songliste mit Jahr (und nach dem Abgleich mit Spotify-IDs) |
 | `tools/test.html` | Funktionstest: Spotify-Login, verdecktes Abspielen, Netzwerk |
 | `tools/abgleich.html` | einmaliger Spotify-Abgleich der Songliste |

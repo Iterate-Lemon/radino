@@ -1,7 +1,19 @@
 # Oberflächen-Schnittstelle (für das Redesign)
 
 Die Oberfläche (`src/ui/`) ist von Spiellogik, Netzwerk und Musik vollständig getrennt.
-Ein neues Design ersetzt **nur** `src/ui/ui.js` und `src/ui/ui.css`. Alles andere bleibt unangetastet.
+Ein neues Design ersetzt **nur** den Ordner `src/ui/`. Alles andere bleibt unangetastet.
+
+Der Ordner besteht derzeit aus:
+
+| Datei | Inhalt |
+|---|---|
+| `ui.js` | Bildschirme (Start, Verbinden, Lobby, Spiel mit Spielende), Meldungen, Rückfragen |
+| `skala.js` | die Zeitleiste als Senderskala mit Songkarten, Auswahl und Aufdeck-Animation |
+| `pixel.js` | eigene Pixelschrift, Dino-Maskottchen, Symbole (alles als SVG gezeichnet) |
+| `dom.js` | kleine DOM-Helfer |
+| `ui.css` | sämtliche Gestaltung |
+
+Der Entwurf, aus dem das Design entstanden ist, liegt zum Nachschlagen in `design/prototyp/` (nicht Teil des Spiels).
 
 ## Vertrag
 
