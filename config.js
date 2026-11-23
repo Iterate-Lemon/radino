@@ -7,7 +7,7 @@
 
 export const CONFIG = {
   // Aus dem Spotify Developer Dashboard → deine App → "Client ID"
-  spotifyClientId: '',
+  spotifyClientId: '23d8552e67ad46e2bcf7ca02e64611f5',
 
   // Leer lassen = automatisch die Adresse dieser Seite, z. B.
   // https://deinname.github.io/radino/   (genau so im Dashboard eintragen)
