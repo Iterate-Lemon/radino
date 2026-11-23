@@ -5,6 +5,7 @@ import { spotifyAuth, redirectUri } from '../src/music/spotify-auth.js';
 import { SpotifyMusic } from '../src/music/spotify-music.js';
 import { getMe } from '../src/music/spotify-api.js';
 import { peerOptions } from '../src/net/peer-options.js';
+import { watchIce } from '../src/net/peer-guest.js';
 
 const DEFAULT_TRACK = '4uLU6hMCjMI75M1A2tKUQC';
 const music = new SpotifyMusic();
@@ -119,8 +120,34 @@ async function netTest() {
       ? '✓ Weiterleitungs-Server erreichbar (TURN) – Verbindungen klappen auch in schwierigen Netzen'
       : '– Kein Weiterleitungs-Server erreichbar (TURN). Meist trotzdem kein Problem; bei Verbindungsproblemen siehe Anleitung.',
   );
+  // c) Selbsttest: zwei Teilnehmer im selben Browser, gleicher Code wie im Spiel
+  lines.push(await loopTest());
   out.net = lines;
   renderNet();
+}
+
+async function loopTest() {
+  const opts = { debug: 0, ...peerOptions() };
+  const a = new window.Peer(opts);
+  const b = new window.Peer(opts);
+  const opened = (p) => new Promise((res) => {
+    p.on('open', () => res(true));
+    p.on('error', () => res(false));
+    setTimeout(() => res(false), 10000);
+  });
+  try {
+    if (!(await opened(a)) || !(await opened(b))) return '✗ Selbsttest: Vermittlungsdienst antwortet nicht';
+    a.on('connection', (conn) => conn.on('data', (d) => conn.send('pong:' + d)));
+    const c = b.connect(a.id, { reliable: true, serialization: 'raw' });
+    const diag = watchIce(c, 'Selbsttest');
+    return await new Promise((res) => {
+      c.on('open', () => c.send('ping'));
+      c.on('data', (d) => res(d === 'pong:ping' ? '✓ Selbsttest: Direktverbindung im selben Browser klappt (Spiel-Code in Ordnung)' : '✗ Selbsttest: falsche Antwort'));
+      setTimeout(() => res(`✗ Selbsttest: keine Direktverbindung (Status: ${diag.ice}, Adressen: ${[...diag.local].join(', ') || 'keine'})`), 15000);
+    });
+  } finally {
+    setTimeout(() => (a.destroy(), b.destroy()), 500);
+  }
 }
 
 function render() {
