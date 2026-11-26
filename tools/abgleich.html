@@ -10,7 +10,7 @@
     />
     <meta name="referrer" content="no-referrer" />
     <title>RaDino – Spotify-Abgleich</title>
-    <link rel="stylesheet" href="../src/ui/ui.css" />
+    <link rel="stylesheet" href="werkzeug.css" />
     <link rel="stylesheet" href="abgleich.css" />
     <script type="module" src="abgleich.js"></script>
   </head>
@@ -21,7 +21,7 @@
         Einmalige Einrichtung: Sucht zu jedem Song die passende Spotify-Track-ID (zuerst über die ISRC, sonst über
         Titel und Interpret). Das Erscheinungsjahr kommt immer von der Karte, nie von Spotify.
       </p>
-      <section class="box" id="login"></section>
+      <section class="box" id="login"><p class="muted" id="loading">Lade Songliste …</p></section>
       <section class="box" id="run"></section>
       <section class="box" id="review"></section>
       <section class="box" id="export"></section>

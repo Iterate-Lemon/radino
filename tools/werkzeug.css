@@ -1,0 +1,47 @@
+/* Schlichtes Layout für die Werkzeugseiten (Abgleich, Funktionstest).
+   Bewusst unabhängig von src/ui/ui.css, damit ein neues Spieldesign diese Seiten nicht zerlegt. */
+:root {
+  --bg: #f6f6f4;
+  --fg: #1d1d1f;
+  --muted: #6b6b70;
+  --box: #ffffff;
+  --line: #dcdcd8;
+  --accent: #1f6feb;
+  --ok: #1a7f37;
+  --bad: #c0392b;
+  color-scheme: light dark;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #161618;
+    --fg: #ececec;
+    --muted: #9a9aa0;
+    --box: #222226;
+    --line: #3a3a40;
+    --accent: #5b9dff;
+    --ok: #4cc06b;
+    --bad: #ff6b5b;
+  }
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.45 system-ui, -apple-system, 'Segoe UI', sans-serif; }
+.page { max-width: 760px; margin: 0 auto; padding: 16px; }
+.page.wide { max-width: 1100px; }
+h1 { margin: 8px 0; }
+h2 { font-size: 1.15rem; margin: 0 0 10px; }
+h3 { font-size: 1rem; margin: 6px 0; }
+.sub, .muted, .hint { color: var(--muted); }
+.hint { font-size: 0.9rem; }
+.box { background: var(--box); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; margin: 12px 0; }
+.box:empty { display: none; }
+.error-text { color: var(--bad); }
+a { color: var(--accent); }
+button { font: inherit; padding: 6px 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--box); color: var(--fg); cursor: pointer; }
+button:hover:not(:disabled) { border-color: var(--accent); }
+button:disabled { opacity: 0.5; cursor: not-allowed; }
+button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
+button.small { padding: 3px 8px; font-size: 0.85rem; }
+input, select { font: inherit; padding: 6px 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--bg); color: var(--fg); }
+.field { display: flex; align-items: center; gap: 8px; margin: 8px 0; flex-wrap: wrap; }
+.check { display: block; margin: 4px 0; }
+.actions { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-top: 8px; }
